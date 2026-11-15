@@ -97,6 +97,9 @@ async function AboutContent() {
       <section className="max-w-prose text-sm text-fg-muted">
         <h2 className="text-2xl font-bold text-fg">{s.openSource}</h2>
         <p className="mt-3">{s.openSourceText}</p>
+        <a className="btn-ghost mt-4 text-sm" href="https://github.com/ZeProxi/isitmycolor.today" target="_blank" rel="noreferrer">
+          github.com/ZeProxi/isitmycolor.today
+        </a>
       </section>
     </div>
   );
