@@ -1,0 +1,25 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        # Next 16 needs Node >= 20.9; pick the newest LTS the build image has.
+        - nvm use 22 || nvm use 20 || true
+        - node --version
+        - npm ci
+    build:
+      commands:
+        # Amplify only exposes env vars at build time; write the two the server
+        # needs into .env.production. Everything else (tables, secrets, flags)
+        # is loaded from SSM Parameter Store at server start via src/instrumentation.ts,
+        # using the app's IAM compute role. No access keys anywhere.
+        - env | grep -e '^APP_AWS_REGION=' -e '^SSM_PREFIX=' >> .env.production || true
+        - npm run build
+  artifacts:
+    baseDirectory: .next
+    files:
+      - "**/*"
+  cache:
+    paths:
+      - node_modules/**/*
+      - .next/cache/**/*

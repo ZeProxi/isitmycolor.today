@@ -1,0 +1,58 @@
+"use client";
+
+import { createContext, useContext, useEffect, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { LANG_COOKIE, t, type Lang } from "@/lib/i18n";
+
+const Ctx = createContext<Lang>("en");
+
+function writeLangCookie(lang: Lang) {
+  document.cookie = `${LANG_COOKIE}=${lang}; path=/; max-age=31536000; samesite=lax`;
+}
+
+export function LangProvider({ lang, children }: { lang: Lang; children: React.ReactNode }) {
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
+  return <Ctx.Provider value={lang}>{children}</Ctx.Provider>;
+}
+
+export function useLang() {
+  const lang = useContext(Ctx);
+  return { lang, s: t(lang) };
+}
+
+/** EN / ES switch. Stores the choice in a cookie and re-renders the server tree. */
+export function LangToggle() {
+  const { lang } = useLang();
+  const router = useRouter();
+  const [pending, start] = useTransition();
+
+  function set(next: Lang) {
+    if (next === lang) return;
+    writeLangCookie(next);
+    start(() => router.refresh());
+  }
+
+  return (
+    <div
+      role="group"
+      aria-label="Language"
+      className={`glass flex rounded-full p-0.5 text-xs font-semibold transition ${pending ? "opacity-60" : ""}`}
+    >
+      {(["en", "es"] as const).map((l) => (
+        <button
+          key={l}
+          type="button"
+          onClick={() => set(l)}
+          aria-pressed={lang === l}
+          className={`rounded-full px-2.5 py-1 uppercase transition ${
+            lang === l ? "bg-white text-ink" : "text-fg-muted hover:text-fg"
+          }`}
+        >
+          {l}
+        </button>
+      ))}
+    </div>
+  );
+}
