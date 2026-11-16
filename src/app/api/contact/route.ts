@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     message,
   ].join("\n");
   try {
-    const r = await sendEmail(to, `[isitmycolor.today contact] ${name || from}`, text, undefined, from);
+    const r = await sendEmail(to, `[isitmycolor.today contact] ${name || from}`, text, undefined, from, env.contactFrom);
     if (r.skipped) return Response.json({ error: "contact_disabled" }, { status: 404 });
     return Response.json({ ok: true });
   } catch {

@@ -22,6 +22,7 @@ export async function sendEmail(
   text: string,
   html?: string,
   replyTo?: string,
+  from?: string,
 ): Promise<{ messageId?: string; dryRun: boolean; skipped?: string }> {
   await ready();
   if (!env.emailFrom) return { dryRun: false, skipped: "EMAIL_FROM not set" };
@@ -31,7 +32,7 @@ export async function sendEmail(
   }
   const r = await ses().send(
     new SendEmailCommand({
-      FromEmailAddress: env.emailFrom,
+      FromEmailAddress: from || env.emailFrom,
       Destination: { ToAddresses: [to] },
       ...(replyTo ? { ReplyToAddresses: [replyTo] } : {}),
       Content: {

@@ -127,7 +127,7 @@ Every public endpoint is either cached at the CDN (`/api/colors`, `/api/history*
 or rate limited in DynamoDB (`src/lib/ratelimit.ts`): sign-in codes are capped per phone, per address
 (10/hour) and site-wide (300/day); code checks per address (30/hour); the contact form per address
 (3/hour) and site-wide (50/day), with a honeypot and a required reply-to email. Session-only endpoints (`/api/me*`, `/api/push*`) need
-the signed cookie; the cron needs its bearer secret. The contact form delivers to `CONTACT_EMAIL` (SSM).
+the signed cookie; the cron needs its bearer secret. The contact form delivers to `CONTACT_EMAIL`, sent from `CONTACT_FROM` (both SSM; the latter falls back to `EMAIL_FROM`).
 For a real flood, turn on the Amplify firewall (WAF) with a rate-based rule.
 
 Each send attempt is logged per phone (`ALERT#<phone>` rows in the history table, one-year TTL) so a

@@ -83,6 +83,10 @@ export const env = {
   get contactEmail() {
     return read("CONTACT_EMAIL");
   },
+  /** Sender for contact-form mail, e.g. "Site contact <form@yourdomain.com>". Falls back to EMAIL_FROM. */
+  get contactFrom() {
+    return read("CONTACT_FROM") || read("EMAIL_FROM");
+  },
   /** Web push (VAPID). Empty public key disables push. */
   get vapidPublicKey() {
     return read("VAPID_PUBLIC_KEY");
