@@ -67,17 +67,15 @@ export async function Locations() {
           const note = loc.weekend.length ? s.jkNote : s.clinicNote;
           return (
             <article key={loc.name} className="glass flex flex-col rounded-3xl p-5">
-              {/* The status pill sits beside the name when there's room and drops under it
-                  when there isn't, so it never squeezes the name or pokes out of the card. */}
-              <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2.5">
-                <div className="min-w-0">
-                  <h3 className="text-lg font-bold leading-tight">{loc.name}</h3>
-                  <p className="text-sm text-fg-muted">{loc.short}</p>
-                </div>
-                <span className={`max-w-full rounded-2xl px-2.5 py-1 text-xs font-medium ring-1 ${pill.cls}`}>
-                  {pill.text}
-                </span>
-              </div>
+              {/* The status pill always gets its own line under the name. Beside the name it
+                  only fit on some cards, so the four looked different from each other. */}
+              <h3 className="text-lg font-bold leading-tight">{loc.name}</h3>
+              <p className="text-sm text-fg-muted">{loc.short}</p>
+              <span
+                className={`mt-2.5 max-w-full self-start rounded-2xl px-2.5 py-1 text-xs font-medium ring-1 ${pill.cls}`}
+              >
+                {pill.text}
+              </span>
 
               <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
                 <dt className="text-fg-faint">{s.monFri}</dt>
