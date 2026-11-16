@@ -140,6 +140,30 @@ export const RESOURCE_SECTIONS: ResourceSection[] = [
         meta: t("Online · free", "En línea · gratis"),
       },
       {
+        name: t("r/REDDITORSINRECOVERY", "r/REDDITORSINRECOVERY"),
+        blurb: t("Recovery from any substance.", "Recuperación de cualquier sustancia."),
+        actions: [{ label: t("Visit on Reddit", "Visitar en Reddit"), href: "https://www.reddit.com/r/REDDITORSINRECOVERY/" }],
+        meta: t("Online · free", "En línea · gratis"),
+      },
+      {
+        name: t("r/leaves", "r/leaves"),
+        blurb: t("Quitting cannabis.", "Dejar el cannabis."),
+        actions: [{ label: t("Visit on Reddit", "Visitar en Reddit"), href: "https://www.reddit.com/r/leaves/" }],
+        meta: t("Online · free", "En línea · gratis"),
+      },
+      {
+        name: t("r/OpiatesRecovery", "r/OpiatesRecovery"),
+        blurb: t("Opioid recovery, including on Suboxone or methadone.", "Recuperación de opioides, incluso con Suboxone o metadona."),
+        actions: [{ label: t("Visit on Reddit", "Visitar en Reddit"), href: "https://www.reddit.com/r/OpiatesRecovery/" }],
+        meta: t("Online · free", "En línea · gratis"),
+      },
+      {
+        name: t("r/StopSpeeding", "r/StopSpeeding"),
+        blurb: t("Quitting meth and other stimulants.", "Dejar la metanfetamina y otros estimulantes."),
+        actions: [{ label: t("Visit on Reddit", "Visitar en Reddit"), href: "https://www.reddit.com/r/StopSpeeding/" }],
+        meta: t("Online · free", "En línea · gratis"),
+      },
+      {
         name: t("For family and friends", "Para familiares y amigos"),
         blurb: t(
           "Al-Anon and Nar-Anon are free groups for people affected by someone else's drinking or drug use.",
@@ -163,6 +187,12 @@ export const RESOURCE_SECTIONS: ResourceSection[] = [
           { label: t("liveonutah.org", "liveonutah.org"), href: "https://liveonutah.org/" },
           { label: t("Guía en español", "Guía en español"), href: "https://liveonutah.org/guia-para-prevencion-del-suicidio/" },
         ],
+      },
+      {
+        name: t("r/SuicideWatch", "r/SuicideWatch"),
+        blurb: t("Peer support from people who've been there. Not a crisis line: call 988 first.", "Apoyo entre pares de personas que han pasado por lo mismo. No es una línea de crisis: llama primero al 988."),
+        actions: [{ label: t("Visit on Reddit", "Visitar en Reddit"), href: "https://www.reddit.com/r/SuicideWatch/" }],
+        meta: t("Online · free", "En línea · gratis"),
       },
       {
         name: t("SafeUT", "SafeUT"),
