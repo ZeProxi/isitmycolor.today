@@ -6,6 +6,7 @@ import { getLang } from "@/lib/lang-server";
 import { t } from "@/lib/i18n";
 import { myColors } from "@/lib/mine";
 import { HistoryCalendar } from "@/components/HistoryCalendar";
+import { NoticeHistory } from "@/components/NoticeHistory";
 import { PageSkeleton } from "@/components/PageSkeleton";
 
 export default function HistoryPage({ searchParams }: PageProps<"/history">) {
@@ -46,6 +47,12 @@ async function HistoryContent({ searchParams }: { searchParams: PageProps<"/hist
         </p>
       )}
       <HistoryCalendar month={month} days={days} today={today} lang={lang} mine={mine} />
+      {days.length > 0 && (
+        <a className="btn-ghost text-sm" href={`/api/history/export?month=${month}`} download>
+          {s.downloadCsv}
+        </a>
+      )}
+      <NoticeHistory days={days} lang={lang} />
     </div>
   );
 }

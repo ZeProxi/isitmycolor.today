@@ -6,6 +6,7 @@ import { todayIsoMountain, hourMountain } from "./dates";
 import { env } from "./env";
 import { ready } from "./config";
 import { requestScreenshot } from "./screenshot";
+import { diagnose, alertOwner } from "./health";
 import { colorInfo } from "./colors";
 import { t, isLang, type Lang } from "./i18n";
 
@@ -109,10 +110,21 @@ export function buildEmailHtml(snapshot: ColorsSnapshot, matched: string[], sub:
  */
 export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyResult> {
   await ready();
-  const snapshot = await fetchColors();
+  const hour = hourMountain();
+  let snapshot: ColorsSnapshot;
+  try {
+    snapshot = await fetchColors();
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
+    await alertOwner("fetch_failed", detail);
+    throw e;
+  }
+  const problem = diagnose(snapshot, hour);
+  if (problem) {
+    await alertOwner(problem, problem === "stale_page" ? `page still shows ${snapshot.dateText}` : "no color boxes found on the page");
+  }
   const today = todayIsoMountain();
   const pageIsForToday = snapshot.date === today;
-  const hour = hourMountain();
   const inNotifyWindow = hour >= env.notifyStartHour && hour < env.notifyEndHour;
 
   const result: NotifyResult = {

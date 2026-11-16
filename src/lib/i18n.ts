@@ -44,6 +44,7 @@ const en = {
     title: "Where to go",
     hotline: "Hotline",
     openUntil: (t: string) => `Open until ${t}`,
+    closesIn: (t: string, left: string) => `Open until ${t} · closes in ${left}`,
     lunch: (t: string) => `Lunch, back at ${t}`,
     closedOpens: (when: string, t: string) => `Closed, opens ${when}${t}`,
     closed: "Closed",
@@ -114,6 +115,8 @@ const en = {
     none: "none",
     noticeMark: "Hotline notice",
     noneThisMonth: "No days recorded this month.",
+    downloadCsv: "Download this month (CSV)",
+    noticesTitle: "Hotline notices",
     note:
       "A day is recorded the first time this tool reads the hotline page for that date, and a copy of the page is kept with it. Blank days are either before this tool started or days the scraper missed. A dot marks a day the hotline posted a notice.",
     weekdays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
@@ -410,6 +413,7 @@ const es: Dict = {
     title: "A dónde ir",
     hotline: "Línea",
     openUntil: (t: string) => `Abierto hasta ${t}`,
+    closesIn: (t: string, left: string) => `Abierto hasta ${t} · cierra en ${left}`,
     lunch: (t: string) => `Almuerzo, regresa a las ${t}`,
     closedOpens: (when: string, t: string) => `Cerrado, abre ${when}${t}`,
     closed: "Cerrado",
@@ -480,6 +484,8 @@ const es: Dict = {
     none: "ninguno",
     noticeMark: "Aviso de la línea",
     noneThisMonth: "No hay días registrados este mes.",
+    downloadCsv: "Descargar este mes (CSV)",
+    noticesTitle: "Avisos de la línea",
     note:
       "Un día se registra la primera vez que esta herramienta lee la página de la línea para esa fecha, y se guarda una copia de la página. Los días en blanco son anteriores al inicio de la herramienta o días que el lector no alcanzó. Un punto marca un día con aviso de la línea.",
     weekdays: ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"],

@@ -5,9 +5,19 @@ import { mountainClock } from "@/lib/dates";
 import { getLang } from "@/lib/lang-server";
 import { t } from "@/lib/i18n";
 
+function fmtLeft(hours: number, lang: "en" | "es"): string {
+  const total = Math.max(0, Math.round(hours * 60));
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h === 0) return `${m} min`;
+  if (m === 0) return `${h} h`;
+  return lang === "es" ? `${h} h ${m} min` : `${h} h ${m} min`;
+}
+
 export async function Locations() {
   await connection();
-  const s = t(await getLang()).where;
+  const lang = await getLang();
+  const s = t(lang).where;
   const { weekday, hour } = mountainClock();
 
   return (
@@ -27,7 +37,7 @@ export async function Locations() {
           const st = openStatus(loc, weekday, hour);
           const pill =
             st.state === "open"
-              ? { text: s.openUntil(fmtHour(st.until)), cls: "bg-ok/15 text-ok ring-ok/30" }
+              ? { text: s.closesIn(fmtHour(st.until), fmtLeft(st.until - hour, lang)), cls: "bg-ok/15 text-ok ring-ok/30" }
               : st.state === "break"
                 ? { text: s.lunch(fmtHour(st.until)), cls: "bg-amber-400/15 text-amber-300 ring-amber-300/30" }
                 : {

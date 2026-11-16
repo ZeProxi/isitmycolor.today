@@ -1,0 +1,34 @@
+import type { NextRequest } from "next/server";
+import { listMonthSnapshots } from "@/lib/dynamo";
+
+/** GET /api/history/export?month=YYYY-MM -> that month's recorded days as CSV. */
+export async function GET(req: NextRequest) {
+  const month = req.nextUrl.searchParams.get("month") ?? "";
+  if (!/^\d{4}-\d{2}$/.test(month)) return new Response("Bad month", { status: 400 });
+  const days = await listMonthSnapshots(month);
+  const q = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  const rows = [
+    ["date", "weekday", "colors", "colors_spanish", "notice", "read_at_utc"].join(","),
+    ...days.map((d) => {
+      const [y, m, dd] = (d.date ?? "").split("-").map(Number);
+      const weekday = d.date ? new Date(Date.UTC(y, m - 1, dd)).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" }) : "";
+      return [
+        d.date ?? "",
+        weekday,
+        d.colors.map((c) => c.english).join("; "),
+        d.colors.map((c) => c.spanish).join("; "),
+        d.announcement,
+        d.fetchedAt,
+      ]
+        .map(q)
+        .join(",");
+    }),
+  ];
+  return new Response(rows.join("\r\n") + "\r\n", {
+    headers: {
+      "content-type": "text/csv; charset=utf-8",
+      "content-disposition": `attachment; filename="isitmycolor-${month}.csv"`,
+      "cache-control": "private, max-age=0",
+    },
+  });
+}

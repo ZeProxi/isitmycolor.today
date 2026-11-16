@@ -113,6 +113,12 @@ npx tsx scripts/sns-sandbox.ts verify +18015551234 123456
    link to the saved copy instead of a screenshot. A real screenshot (headless Chrome in a Lambda) could be
    added later for the email channel.
 
+## Knowing when it breaks
+
+The daily job checks its own result. If the hotline page can't be fetched, parses to no colors, or still
+shows yesterday's date after 7 am Mountain, the owner gets one text and one email per problem per day
+(`OWNER_PHONE` and `OWNER_EMAIL` in SSM). Subscribers are never contacted by this. See `src/lib/health.ts`.
+
 ## Winding the site down
 
 Set the SSM parameter `/isitmycolor/SITE_SUNSET` to `true` and redeploy. Every page then shows a notice
