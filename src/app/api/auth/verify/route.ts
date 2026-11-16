@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { normalizePhone } from "@/lib/sms";
 import { verifyCode, makeSessionToken, sessionCookieOptions, SESSION_COOKIE } from "@/lib/auth";
 import { getSubscriber } from "@/lib/dynamo";
+import { allow, clientIp } from "@/lib/ratelimit";
 
 /** POST { phone, code } -> sets the session cookie and returns the profile (null if new) */
 export async function POST(req: NextRequest) {
@@ -15,6 +16,7 @@ export async function POST(req: NextRequest) {
   const phone = normalizePhone(body.phone ?? "");
   const code = (body.code ?? "").replace(/\D/g, "");
   if (!phone || code.length !== 6) return Response.json({ error: "wrong" }, { status: 400 });
+  if (!(await allow(`verify:ip:${clientIp(req)}`, 30, 3600))) return Response.json({ error: "too_many" }, { status: 429 });
 
   const r = await verifyCode(phone, code);
   if (!r.ok) return Response.json({ error: r.error }, { status: 401 });

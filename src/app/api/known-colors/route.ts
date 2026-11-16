@@ -10,5 +10,5 @@ export async function GET() {
     // table may not exist yet in dev; fall back to the static list
   }
   const keys = new Set([...KNOWN_COLORS.map((c) => c.key), ...seen]);
-  return Response.json({ colors: Array.from(keys).map(colorInfo) });
+  return Response.json({ colors: Array.from(keys).map(colorInfo) }, { headers: { "cache-control": "public, max-age=3600, s-maxage=86400" } });
 }

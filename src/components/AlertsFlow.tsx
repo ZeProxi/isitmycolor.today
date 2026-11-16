@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ColorInfo } from "@/lib/colors";
 import { useLang } from "./LangProvider";
 import { PushButton } from "./PushButton";
+import { AlertHistory } from "./AlertHistory";
 
 type Prefs = { mode: "match" | "daily"; includeOfficial: boolean; earliestHour: number };
 const DEFAULT_PREFS: Prefs = { mode: "match", includeOfficial: false, earliestHour: 6 };
@@ -172,10 +173,12 @@ export function AlertsFlow({ smsPending = false }: { smsPending?: boolean }) {
     }
   }
 
+  const [testCount, setTestCount] = useState(0); // bumps so the history list refreshes after a test
   async function sendTest() {
     setStatus({ kind: "busy", msg: s.prefs.testSending });
     try {
       const { r, d } = await call("/api/me/test", "POST");
+      setTestCount((n) => n + 1);
       if (r.status === 401) return signedOut();
       if (!r.ok) {
         const msg = d.error === "limit" ? s.prefs.testLimit : s.prefs.testFailed;
@@ -348,6 +351,8 @@ export function AlertsFlow({ smsPending = false }: { smsPending?: boolean }) {
             </button>
           </div>
           <p className="mt-2 text-xs text-fg-faint">{s.prefs.testHelp}</p>
+
+          <AlertHistory refreshKey={testCount} />
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-4 text-xs text-fg-faint">
             <span>

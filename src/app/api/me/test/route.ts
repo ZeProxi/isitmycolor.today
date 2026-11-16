@@ -5,6 +5,7 @@ import { buildMessage, buildEmailHtml } from "@/lib/notify";
 import { sendSms } from "@/lib/sms";
 import { sendEmail } from "@/lib/email";
 import { sendPush } from "@/lib/push";
+import { logAlert } from "@/lib/alertlog";
 import { t, isLang } from "@/lib/i18n";
 
 const MAX_PER_DAY = 3;
@@ -63,6 +64,8 @@ export async function POST() {
     const pr = await sendPush(phone, sub.push, { title: t(lang).emailSubject[matched.length ? "match" : "noMatch"], body: message, url: "/", tag: "test" });
     push = pr.dryRun ? "dry-run" : pr.sent > 0 ? "sent" : "failed";
   }
+
+  await logAlert(phone, { date: snapshot.date ?? "", kind: "test", colors: matched, sms, email, push: push === "none" ? undefined : push });
 
   if (sms === "failed" && email !== "sent" && push !== "sent" && push !== "dry-run") {
     return Response.json({ error: "send_failed", detail: smsError, email, push }, { status: 502 });

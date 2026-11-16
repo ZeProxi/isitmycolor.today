@@ -1,4 +1,5 @@
-import webpush, { type PushSubscription } from "web-push";
+import * as webpush from "web-push";
+import type { PushSubscription } from "web-push";
 import { UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient, getSubscriber } from "./dynamo";
 import { env } from "./env";

@@ -4,6 +4,7 @@ import { deleteSubscriber, getSubscriber, upsertSubscriber, AGREEMENT_VERSION, t
 import { normalizeColorKey } from "@/lib/colors";
 import { isLang } from "@/lib/i18n";
 import { isEmail } from "@/lib/email";
+import { deleteAlerts } from "@/lib/alertlog";
 
 /** The signed-in person's alert. All three methods need the session cookie. */
 
@@ -65,7 +66,7 @@ export async function PUT(req: NextRequest) {
 export async function DELETE() {
   const phone = await currentPhone();
   if (!phone) return unauthorized();
-  await deleteSubscriber(phone);
+  await Promise.all([deleteSubscriber(phone), deleteAlerts(phone)]);
   return Response.json({ ok: true });
 }
 

@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     headers: {
       "content-type": "text/csv; charset=utf-8",
       "content-disposition": `attachment; filename="isitmycolor-${month}.csv"`,
-      "cache-control": "private, max-age=0",
+      "cache-control": "public, max-age=300",
     },
   });
 }

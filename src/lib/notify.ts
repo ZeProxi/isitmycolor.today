@@ -8,6 +8,7 @@ import { ready } from "./config";
 import { requestScreenshot } from "./screenshot";
 import { diagnose, alertOwner } from "./health";
 import { sendPush } from "./push";
+import { logAlert, type ChannelStatus } from "./alertlog";
 import { colorInfo } from "./colors";
 import { t, isLang, type Lang } from "./i18n";
 
@@ -197,6 +198,16 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
         const pr = await sendPush(sub.phone, sub.push, { title, body: message, url: dayPageUrl(snapshot) ?? "/", tag: `day-${snapshot.date}` });
         push = pr.dryRun ? "dry-run" : `${pr.sent}/${pr.sent + pr.failed}`;
       }
+      const st = (v?: string): ChannelStatus | undefined =>
+        v === undefined ? undefined : v === "sent" || v.startsWith("1") ? "sent" : v === "dry-run" ? "dry-run" : v.startsWith("skipped") ? "skipped" : "failed";
+      await logAlert(sub.phone, {
+        date: snapshot.date!,
+        kind: matched.length ? "match" : "daily",
+        colors: matched,
+        sms: smsError ? "failed" : r.dryRun ? "dry-run" : "sent",
+        email: st(email),
+        push: st(push),
+      });
       if (smsError && email !== "sent" && !push?.startsWith("1") && push !== "dry-run") throw new Error(smsError);
       await markNotified(sub.phone, snapshot.date!);
       result.notified.push({ phone: sub.phone, colors: matched, kind: matched.length ? "match" : "daily", email, smsError, push, ...r });

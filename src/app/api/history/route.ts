@@ -13,13 +13,13 @@ export async function GET(req: NextRequest) {
     if (date) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return Response.json({ error: "Bad date" }, { status: 400 });
       const rec = await getDayRecord(date);
-      return Response.json({ day: rec });
+      return Response.json({ day: rec }, { headers: { "cache-control": "public, max-age=300, s-maxage=3600" } });
     }
     if (month) {
       if (!/^\d{4}-\d{2}$/.test(month)) return Response.json({ error: "Bad month" }, { status: 400 });
-      return Response.json({ month, days: await listMonthSnapshots(month) });
+      return Response.json({ month, days: await listMonthSnapshots(month) }, { headers: { "cache-control": "public, max-age=60, s-maxage=300" } });
     }
-    return Response.json({ days: await listRecentSnapshots(30) });
+    return Response.json({ days: await listRecentSnapshots(30) }, { headers: { "cache-control": "public, max-age=60, s-maxage=300" } });
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }

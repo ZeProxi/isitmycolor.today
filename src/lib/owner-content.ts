@@ -2,6 +2,7 @@ import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env, awsCredentials } from "./env";
 import { ready } from "./config";
+import { connection } from "next/server";
 import type { WhySection } from "@/content/why";
 
 /**
@@ -11,6 +12,7 @@ import type { WhySection } from "@/content/why";
  * About page simply omits the section.
  */
 export async function loadOwnerWhy(): Promise<WhySection | null> {
+  await connection(); // signed photo links are request-time, never prerendered
   await ready();
   if (!env.screenshotBucket) return null;
   const s3 = new S3Client({ region: env.region, credentials: awsCredentials() });

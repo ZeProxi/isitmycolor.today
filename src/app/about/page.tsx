@@ -5,6 +5,8 @@ import { t } from "@/lib/i18n";
 import { Disclaimer } from "@/components/Disclaimer";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { WHY } from "@/content/why";
+import { ContactForm } from "@/components/ContactForm";
+import { env } from "@/lib/env";
 import { loadOwnerWhy } from "@/lib/owner-content";
 
 export default function AboutPage() {
@@ -93,6 +95,8 @@ async function AboutContent() {
       </section>
 
       <Disclaimer />
+
+      {env.contactEmail && <ContactForm />}
 
       <section className="max-w-prose text-sm text-fg-muted">
         <h2 className="text-2xl font-bold text-fg">{s.openSource}</h2>

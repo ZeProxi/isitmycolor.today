@@ -79,6 +79,10 @@ export const env = {
   get smsPending() {
     return read("SMS_PENDING") === "true";
   },
+  /** Where the About page's contact form delivers. Empty disables the form. */
+  get contactEmail() {
+    return read("CONTACT_EMAIL");
+  },
   /** Web push (VAPID). Empty public key disables push. */
   get vapidPublicKey() {
     return read("VAPID_PUBLIC_KEY");

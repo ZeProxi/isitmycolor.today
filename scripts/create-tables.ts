@@ -7,6 +7,8 @@ import {
   DynamoDBClient,
   CreateTableCommand,
   DescribeTableCommand,
+  DescribeTimeToLiveCommand,
+  UpdateTimeToLiveCommand,
   ResourceNotFoundException,
   waitUntilTableExists,
 } from "@aws-sdk/client-dynamodb";
@@ -36,6 +38,15 @@ async function ensure(name: string, keys: { name: string; type: "HASH" | "RANGE"
   console.log(`✓ ${name} created`);
 }
 
+/** Rows with a numeric `ttl` (rate-limit counters, per-person alert logs) expire on their own. */
+async function enableTtl(name: string) {
+  const d = await client.send(new DescribeTimeToLiveCommand({ TableName: name }));
+  const status = d.TimeToLiveDescription?.TimeToLiveStatus;
+  if (status === "ENABLED" || status === "ENABLING") return console.log(`✓ ${name} TTL on`);
+  await client.send(new UpdateTimeToLiveCommand({ TableName: name, TimeToLiveSpecification: { AttributeName: "ttl", Enabled: true } }));
+  console.log(`✓ ${name} TTL enabled`);
+}
+
 async function main() {
   console.log(`region: ${env.region}`);
   await ensure(env.subscribersTable, [{ name: "phone", type: "HASH" }]);
@@ -43,6 +54,7 @@ async function main() {
     { name: "pk", type: "HASH" },
     { name: "sk", type: "RANGE" },
   ]);
+  await enableTtl(env.historyTable);
 }
 
 main().catch((e) => {
