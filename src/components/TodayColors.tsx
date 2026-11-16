@@ -37,6 +37,9 @@ export async function TodayColors() {
     minute: "2-digit",
   });
   const n = data.colors.length;
+  // Three or more full-width tiles push everything else off a phone screen, so
+  // from three up they go two-across and shorter there. Wider screens are unchanged.
+  const compact = n >= 3;
   const todayKeys = new Set(data.colors.map((c) => c.key));
   const matched = mine.filter((k) => todayKeys.has(k));
   const mineNames = mine.map((k) => {
@@ -71,11 +74,17 @@ export async function TodayColors() {
 
       {n > 0 && (
         <div
-          className={`mt-6 grid gap-4 ${
-            n === 1 ? "grid-cols-1" : n === 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+          className={`mt-6 grid ${
+            n === 1
+              ? "grid-cols-1 gap-4"
+              : n === 2
+                ? "grid-cols-1 gap-4 sm:grid-cols-2"
+                : "grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3"
           }`}
         >
-          {data.colors.map((c) => {
+          {data.colors.map((c, idx) => {
+            // An odd one out at the end fills the row on phones instead of leaving a hole.
+            const wide = compact && n % 2 === 1 && idx === n - 1;
             const info = colorInfo(c.key, c);
             const hex = c.siteBackground ?? info.hex; // the page's own color wins
             const primary = lang === "es" ? c.spanish || info.spanish || c.english : c.english;
@@ -85,9 +94,11 @@ export async function TodayColors() {
             return (
               <div
                 key={c.raw}
-                className={`gloss tile-in relative flex min-h-44 flex-col justify-end overflow-hidden rounded-[28px] p-6 transition sm:min-h-56 sm:p-7 ${
-                  dimmed ? "opacity-60 saturate-75" : ""
-                } ${isMine ? "ring-2 ring-white ring-offset-4 ring-offset-ink" : ""}`}
+                className={`gloss tile-in relative flex flex-col justify-end overflow-hidden transition sm:min-h-56 sm:rounded-[28px] sm:p-7 ${
+                  compact ? "min-h-28 rounded-3xl p-4" : "min-h-44 rounded-[28px] p-6"
+                } ${wide ? "col-span-2 sm:col-span-1" : ""} ${dimmed ? "opacity-60 saturate-75" : ""} ${
+                  isMine ? "ring-2 ring-white ring-offset-4 ring-offset-ink" : ""
+                }`}
                 style={{
                   background: `linear-gradient(160deg, ${hex} 0%, ${hex} 55%, color-mix(in oklab, ${hex} 70%, black) 100%)`,
                   color: info.text,
@@ -97,17 +108,33 @@ export async function TodayColors() {
                 }}
               >
                 {isMine && (
-                  <span className="absolute right-4 top-4 rounded-full bg-white px-3 py-1 text-xs font-bold text-ink shadow">
+                  <span
+                    className={`absolute rounded-full bg-white font-bold text-ink shadow sm:right-4 sm:top-4 sm:px-3 sm:py-1 sm:text-xs ${
+                      compact ? "right-2.5 top-2.5 px-2 py-0.5 text-[11px]" : "right-4 top-4 px-3 py-1 text-xs"
+                    }`}
+                  >
                     {s.yourColor}
                   </span>
                 )}
                 <span
-                  className={`display relative break-words font-extrabold leading-none ${primary.length > 9 ? "text-3xl sm:text-4xl" : primary.length > 6 ? "text-4xl sm:text-5xl" : "text-5xl sm:text-6xl"}`}
+                  className={`display relative break-words font-extrabold leading-none ${
+                    primary.length > 9
+                      ? `${compact ? "text-xl" : "text-3xl"} sm:text-4xl`
+                      : primary.length > 6
+                        ? `${compact ? "text-2xl" : "text-4xl"} sm:text-5xl`
+                        : `${compact ? "text-3xl" : "text-5xl"} sm:text-6xl`
+                  }`}
                   style={{ textShadow: "0 2px 16px rgba(0,0,0,0.18)" }}
                 >
                   {cap(primary)}
                 </span>
-                {secondary && <span className="relative mt-2 text-lg font-semibold opacity-80">{secondary}</span>}
+                {secondary && (
+                  <span
+                    className={`relative font-semibold opacity-80 sm:mt-2 sm:text-lg ${compact ? "mt-1 text-sm" : "mt-2 text-lg"}`}
+                  >
+                    {secondary}
+                  </span>
+                )}
               </div>
             );
           })}
