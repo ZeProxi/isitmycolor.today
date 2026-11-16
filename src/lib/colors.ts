@@ -49,15 +49,48 @@ export function normalizeColorKey(raw: string): string {
     .replace(/\s+/g, " ");
 }
 
-export function colorInfo(key: string): ColorInfo {
+/** Black or white, whichever reads better on the given background. */
+const NAMED: Record<string, string> = {
+  red: "#ff0000", orange: "#ffa500", yellow: "#ffff00", green: "#008000", blue: "#0000ff", purple: "#800080", pink: "#ffc0cb",
+  brown: "#a52a2a", black: "#000000", white: "#ffffff", gray: "#808080", grey: "#808080", teal: "#008080", navy: "#000080",
+  maroon: "#800000", olive: "#808000", lime: "#00ff00", aqua: "#00ffff", cyan: "#00ffff", magenta: "#ff00ff", silver: "#c0c0c0",
+  gold: "#ffd700", tan: "#d2b48c", turquoise: "#40e0d0", violet: "#ee82ee", indigo: "#4b0082", coral: "#ff7f50", salmon: "#fa8072",
+  lavender: "#e6e6fa", chartreuse: "#7fff00", beige: "#f5f5dc", ivory: "#fffff0", khaki: "#f0e68c", crimson: "#dc143c", orchid: "#da70d6", plum: "#dda0dd",
+};
+
+export function textOn(color: string): string {
+  const hex = NAMED[color.trim().toLowerCase()] ?? color;
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return "#111";
+  const n = parseInt(m[1], 16);
+  const lum = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return lum > 0.6 ? "#111" : "#fff";
+}
+
+/**
+ * Colors the hotline has used that aren't in the built-in list above, learned
+ * from the page itself (name, Spanish name, the page's own background). Filled
+ * on the server from DynamoDB (see seen-colors.ts); client components pass the
+ * day's color object as a hint instead.
+ */
+const seen = new Map<string, ColorInfo>();
+export function registerColors(list: ColorInfo[]) {
+  for (const c of list) if (!KNOWN_COLORS.some((k) => k.key === c.key)) seen.set(c.key, c);
+}
+
+export type ColorHint = { english?: string; spanish?: string; siteBackground?: string | null };
+
+export function colorInfo(key: string, hint?: ColorHint): ColorInfo {
   const k = normalizeColorKey(key);
-  return (
-    KNOWN_COLORS.find((c) => c.key === k) ?? {
-      key: k,
-      english: k.charAt(0).toUpperCase() + k.slice(1),
-      spanish: "",
-      hex: "#9ca3af",
-      text: "#111",
-    }
-  );
+  const known = KNOWN_COLORS.find((c) => c.key === k);
+  if (known) return known;
+  const learned = seen.get(k);
+  const hex = hint?.siteBackground || learned?.hex || "#9ca3af";
+  return {
+    key: k,
+    english: hint?.english || learned?.english || k.charAt(0).toUpperCase() + k.slice(1),
+    spanish: hint?.spanish || learned?.spanish || "",
+    hex,
+    text: textOn(hex),
+  };
 }

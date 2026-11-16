@@ -53,7 +53,7 @@ export function buildMessage(snapshot: ColorsSnapshot, matched: string[], sub: W
   if (matched.length) {
     const mine = matched
       .map((k) => {
-        const c = colorInfo(k);
+        const c = colorInfo(k, snapshot.colors.find((x) => x.key === k));
         return (l === "es" && c.spanish ? c.spanish : c.english).toUpperCase();
       })
       .join(", ");
@@ -76,7 +76,7 @@ export function buildEmailHtml(snapshot: ColorsSnapshot, matched: string[], sub:
   const url = dayPageUrl(snapshot);
   const blocks = snapshot.colors
     .map((c) => {
-      const info = colorInfo(c.key);
+      const info = colorInfo(c.key, c);
       const mine = matched.includes(c.key);
       return `<div style="background:${info.hex};color:${info.text};font:bold 22px/1 Arial,sans-serif;padding:18px 20px;border-radius:12px;margin:8px 0;${mine ? "outline:3px solid #fff;" : ""}">${esc(c.raw)}${mine ? " &#10003;" : ""}</div>`;
     })

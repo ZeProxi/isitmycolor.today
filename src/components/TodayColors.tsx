@@ -40,7 +40,7 @@ export async function TodayColors() {
   const todayKeys = new Set(data.colors.map((c) => c.key));
   const matched = mine.filter((k) => todayKeys.has(k));
   const mineNames = mine.map((k) => {
-    const i = colorInfo(k);
+    const i = colorInfo(k, data.colors.find((c) => c.key === k));
     return lang === "es" && i.spanish ? i.spanish : i.english;
   });
 
@@ -76,7 +76,7 @@ export async function TodayColors() {
           }`}
         >
           {data.colors.map((c) => {
-            const info = colorInfo(c.key);
+            const info = colorInfo(c.key, c);
             const hex = c.siteBackground ?? info.hex; // the page's own color wins
             const primary = lang === "es" ? c.spanish || info.spanish || c.english : c.english;
             const secondary = lang === "es" ? c.english : c.spanish || info.spanish;
@@ -102,7 +102,7 @@ export async function TodayColors() {
                   </span>
                 )}
                 <span
-                  className="display relative text-5xl font-extrabold leading-none sm:text-6xl"
+                  className={`display relative break-words font-extrabold leading-none ${primary.length > 9 ? "text-3xl sm:text-4xl" : primary.length > 6 ? "text-4xl sm:text-5xl" : "text-5xl sm:text-6xl"}`}
                   style={{ textShadow: "0 2px 16px rgba(0,0,0,0.18)" }}
                 >
                   {cap(primary)}

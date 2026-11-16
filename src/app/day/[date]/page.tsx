@@ -65,7 +65,7 @@ async function DayContent({ params }: { params: PageProps<"/day/[date]">["params
         // No screenshot for this day: show the colors from the saved record instead.
         <div className="flex flex-wrap gap-2">
           {snap.colors.map((c) => {
-            const info = colorInfo(c.key);
+            const info = colorInfo(c.key, c);
             return (
               <span key={c.raw} className="gloss relative rounded-xl px-4 py-2 text-lg font-bold" style={{ background: c.siteBackground ?? info.hex, color: info.text }}>
                 <span className="relative">{c.raw}</span>

@@ -11,6 +11,7 @@ import {
 import { env, awsCredentials } from "./env";
 import type { ColorsSnapshot } from "./scrape";
 import { nowIso } from "./dates";
+import { KNOWN_COLORS, textOn, type ColorInfo } from "./colors";
 import { ready } from "./config";
 
 let _doc: DynamoDBDocumentClient | null = null;
@@ -170,6 +171,7 @@ export async function recordTestSend(phone: string, sends: number[]) {
 // ---------- Colors history ----------
 // pk = "DAY",  sk = YYYY-MM-DD      -> snapshot for that day
 // pk = "META", sk = "known-colors"  -> set of every color key ever seen
+// pk = "META", sk = "color#<key>"    -> how a color not in the built-in list looked on the site
 
 export type DayRecord = {
   pk: "DAY";
@@ -216,8 +218,34 @@ export async function saveSnapshot(full: ColorsSnapshot): Promise<boolean> {
         },
       }),
     );
+    // A color we don't have a swatch for: keep its names and the page's own background
+    // so the picker, calendar, and texts show it properly without a code change.
+    for (const c of snapshot.colors) {
+      if (KNOWN_COLORS.some((k) => k.key === c.key)) continue;
+      const hex = c.siteBackground || "#9ca3af";
+      await (await client()).send(
+        new PutCommand({
+          TableName: env.historyTable,
+          Item: { pk: "META", sk: `color#${c.key}`, key: c.key, english: cap(c.english), spanish: cap(c.spanish), hex, text: textOn(hex), lastSeen: snapshot.date, updatedAt: nowIso() },
+        }),
+      );
+    }
   }
   return isNew;
+}
+
+const cap = (w: string) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : "");
+
+/** Colors learned from the site that aren't in the built-in list. */
+export async function getSeenColors(): Promise<ColorInfo[]> {
+  const r = await (await client()).send(
+    new QueryCommand({
+      TableName: env.historyTable,
+      KeyConditionExpression: "pk = :pk AND begins_with(sk, :p)",
+      ExpressionAttributeValues: { ":pk": "META", ":p": "color#" },
+    }),
+  );
+  return (r.Items ?? []).map((i) => ({ key: i.key as string, english: i.english as string, spanish: (i.spanish as string) ?? "", hex: i.hex as string, text: i.text as string }));
 }
 
 export async function getSnapshot(date: string): Promise<ColorsSnapshot | null> {

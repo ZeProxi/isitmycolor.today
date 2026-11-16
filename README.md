@@ -134,6 +134,12 @@ Each send attempt is logged per phone (`ALERT#<phone>` rows in the history table
 signed-in person can see their own alert history on the Alerts tab. It is readable only with the session
 cookie and is deleted with the subscription.
 
+## New colors
+
+The scraper keeps whatever the hotline prints. A color missing from the built-in list in `src/lib/colors.ts`
+is saved with its names and the page's own background (`META` / `color#<key>`), offered in the picker, and
+drawn with that look everywhere, so nothing needs a code change when the hotline adds one.
+
 ## STOP and START
 
 Carrier opt-outs are enforced by Amazon SNS. The site reads the SNS opted-out list on every notify run

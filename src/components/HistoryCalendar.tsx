@@ -87,7 +87,7 @@ export function HistoryCalendar({
                   {snap ? (
                     snap.colors.length ? (
                       snap.colors.map((c) => {
-                        const info = colorInfo(c.key);
+                        const info = colorInfo(c.key, c);
                         const isMine = mine.includes(c.key);
                         const dimmed = mine.length > 0 && !isMine;
                         return (
@@ -137,7 +137,7 @@ export function HistoryCalendar({
                   <span className="flex flex-1 flex-wrap gap-1.5">
                     {d.colors.length === 0 && <span className="text-sm text-fg-muted">{s.none}</span>}
                     {d.colors.map((c) => {
-                      const info = colorInfo(c.key);
+                      const info = colorInfo(c.key, c);
                       const isMine = mine.includes(c.key);
                       return (
                         <span

@@ -9,6 +9,7 @@ import { myColors } from "@/lib/mine";
 import { env } from "@/lib/env";
 import { ready } from "@/lib/config";
 import { colorInfo } from "@/lib/colors";
+import { withSeenColors } from "@/lib/seen-colors";
 
 /** Request-time chrome: reads the language cookie and wraps the page in the header/footer/tab bar. */
 export async function Shell({ children }: { children: React.ReactNode }) {
@@ -17,6 +18,7 @@ export async function Shell({ children }: { children: React.ReactNode }) {
   const s = t(lang);
   const mine = await myColors();
   await ready();
+  await withSeenColors();
   const sunset = env.siteSunset;
   const notice = env.siteNotice;
   const brand =
