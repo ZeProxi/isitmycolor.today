@@ -131,6 +131,15 @@ export const RESOURCE_SECTIONS: ResourceSection[] = [
         ],
       },
       {
+        name: t("r/stopdrinking", "r/stopdrinking"),
+        blurb: t(
+          "A large, kind online community of people quitting or cutting back on alcohol. Daily check-ins, no judgment, any hour.",
+          "Una comunidad en línea grande y amable de personas que dejan o reducen el alcohol. Registros diarios, sin juicios, a cualquier hora.",
+        ),
+        actions: [{ label: t("Visit on Reddit", "Visitar en Reddit"), href: "https://www.reddit.com/r/stopdrinking/" }],
+        meta: t("Online · free", "En línea · gratis"),
+      },
+      {
         name: t("For family and friends", "Para familiares y amigos"),
         blurb: t(
           "Al-Anon and Nar-Anon are free groups for people affected by someone else's drinking or drug use.",
