@@ -79,6 +79,14 @@ export const env = {
   get smsPending() {
     return read("SMS_PENDING") === "true";
   },
+  /** SES configuration set that publishes bounces/complaints (set as the identity default too). */
+  get sesConfigSet() {
+    return read("SES_CONFIGURATION_SET");
+  },
+  /** SNS topic those events arrive from; /api/ses/events accepts nothing else. */
+  get sesEventsTopicArn() {
+    return read("SES_EVENTS_TOPIC_ARN");
+  },
   /** Where the About page's contact form delivers. Empty disables the form. */
   get contactEmail() {
     return read("CONTACT_EMAIL");

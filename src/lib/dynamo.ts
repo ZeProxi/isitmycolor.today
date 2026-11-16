@@ -68,6 +68,8 @@ export type Subscriber = {
   testSends?: number[];
   /** ISO time we noticed this number replied STOP to the carrier; texts are skipped until it replies START. */
   smsStopped?: string;
+  /** Why the email was removed automatically (hard bounce, spam complaint, or the link in an email). */
+  emailStopped?: { at: string; reason: "bounce" | "complaint" | "unsubscribe"; email: string };
   /** web push subscriptions (devices that allowed notifications) */
   push?: { endpoint: string; keys: { p256dh: string; auth: string }; addedAt: string; ua?: string }[];
   /** Who owns this row once auth is added (Cognito sub). Unused for now. */
@@ -143,6 +145,39 @@ export async function markNotified(phone: string, date: string) {
       ExpressionAttributeValues: { ":d": date, ":u": nowIso() },
     }),
   );
+}
+
+/** Remove someone's email after a hard bounce, a spam complaint, or their own unsubscribe click. */
+export async function clearEmail(phone: string, reason: "bounce" | "complaint" | "unsubscribe") {
+  const cur = await getSubscriber(phone);
+  if (!cur) return;
+  await (await client()).send(
+    new UpdateCommand({
+      TableName: env.subscribersTable,
+      Key: { phone },
+      UpdateExpression: "SET email = :e, emailStopped = :s, updatedAt = :u",
+      ExpressionAttributeValues: { ":e": "", ":s": { at: nowIso(), reason, email: cur.email ?? "" }, ":u": nowIso() },
+    }),
+  );
+}
+
+/** Active subscribers using this email (a handful of rows; a scan is fine at this size). */
+export async function findSubscribersByEmail(email: string): Promise<Subscriber[]> {
+  const out: Subscriber[] = [];
+  let ExclusiveStartKey: Record<string, unknown> | undefined;
+  do {
+    const r = await (await client()).send(
+      new ScanCommand({
+        TableName: env.subscribersTable,
+        FilterExpression: "email = :e",
+        ExpressionAttributeValues: { ":e": email.trim().toLowerCase() },
+        ExclusiveStartKey,
+      }),
+    );
+    out.push(...((r.Items ?? []) as Subscriber[]));
+    ExclusiveStartKey = r.LastEvaluatedKey;
+  } while (ExclusiveStartKey);
+  return out;
 }
 
 /** Record (or clear) that the carrier has this number opted out of texts. */

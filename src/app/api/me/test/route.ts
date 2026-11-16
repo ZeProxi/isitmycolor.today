@@ -6,6 +6,7 @@ import { sendSms, isOptedOut } from "@/lib/sms";
 import { sendEmail } from "@/lib/email";
 import { sendPush } from "@/lib/push";
 import { logAlert } from "@/lib/alertlog";
+import { unsubscribeUrl } from "@/lib/unsubscribe";
 import { t, isLang } from "@/lib/i18n";
 
 const MAX_PER_DAY = 3;
@@ -57,7 +58,8 @@ export async function POST() {
   if (sub.email) {
     try {
       const lang = isLang(sub.lang) ? sub.lang : "en";
-      const e = await sendEmail(sub.email, t(lang).emailSubject[matched.length ? "match" : "noMatch"], message, buildEmailHtml(snapshot, matched, sub, message));
+      const unsub = unsubscribeUrl(phone);
+      const e = await sendEmail(sub.email, t(lang).emailSubject[matched.length ? "match" : "noMatch"], `${message}\n\n${t(lang).emailUnsubscribe}: ${unsub}`, buildEmailHtml(snapshot, matched, sub, message, unsub), undefined, undefined, unsub);
       email = e.skipped ? "skipped" : e.dryRun ? "dry-run" : "sent";
     } catch {
       email = "failed";

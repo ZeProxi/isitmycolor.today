@@ -9,6 +9,7 @@ import { requestScreenshot } from "./screenshot";
 import { diagnose, alertOwner } from "./health";
 import { sendPush } from "./push";
 import { logAlert, type ChannelStatus } from "./alertlog";
+import { unsubscribeUrl } from "./unsubscribe";
 import { colorInfo } from "./colors";
 import { t, isLang, type Lang } from "./i18n";
 
@@ -70,7 +71,7 @@ const esc = (v: string) =>
   v.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string);
 
 /** HTML email: our summary, plus (if asked) a rendering of the official page as captured. */
-export function buildEmailHtml(snapshot: ColorsSnapshot, matched: string[], sub: Who, text: string): string {
+export function buildEmailHtml(snapshot: ColorsSnapshot, matched: string[], sub: Who, text: string, unsubscribe?: string): string {
   const l = langOf(sub);
   const s = t(l);
   const url = dayPageUrl(snapshot);
@@ -103,6 +104,7 @@ export function buildEmailHtml(snapshot: ColorsSnapshot, matched: string[], sub:
       <p style="margin:16px 0 0">${esc(text)}</p>
       ${official}
       <p style="margin:24px 0 0;font-size:12px;color:#9aa6c4"><a style="color:#9aa6c4" href="${esc(snapshot.sourceUrl)}">${esc(snapshot.sourceUrl)}</a></p>
+      ${unsubscribe ? `<p style="margin:8px 0 0;font-size:12px;color:#9aa6c4"><a style="color:#9aa6c4" href="${esc(unsubscribe)}">${esc(s.emailUnsubscribe)}</a> &middot; ${esc(s.emailWhy)}</p>` : ""}
     </div></body></html>`;
 }
 
@@ -198,7 +200,9 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
       if (sub.email) {
         try {
           const subj = t(langOf(sub)).emailSubject[matched.length ? "match" : "noMatch"];
-          const e = await sendEmail(sub.email, subj, message, buildEmailHtml(snapshot, matched, sub, message));
+          const unsub = unsubscribeUrl(sub.phone);
+          const text = `${message}\n\n${t(langOf(sub)).emailUnsubscribe}: ${unsub}`;
+          const e = await sendEmail(sub.email, subj, text, buildEmailHtml(snapshot, matched, sub, message, unsub), undefined, undefined, unsub);
           email = e.skipped ? `skipped: ${e.skipped}` : e.dryRun ? "dry-run" : "sent";
         } catch (e) {
           email = `failed: ${e instanceof Error ? e.message : String(e)}`;

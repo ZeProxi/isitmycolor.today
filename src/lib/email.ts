@@ -23,6 +23,7 @@ export async function sendEmail(
   html?: string,
   replyTo?: string,
   from?: string,
+  unsubscribeUrl?: string,
 ): Promise<{ messageId?: string; dryRun: boolean; skipped?: string }> {
   await ready();
   if (!env.emailFrom) return { dryRun: false, skipped: "EMAIL_FROM not set" };
@@ -33,10 +34,19 @@ export async function sendEmail(
   const r = await ses().send(
     new SendEmailCommand({
       FromEmailAddress: from || env.emailFrom,
+      ...(env.sesConfigSet ? { ConfigurationSetName: env.sesConfigSet } : {}),
       Destination: { ToAddresses: [to] },
       ...(replyTo ? { ReplyToAddresses: [replyTo] } : {}),
       Content: {
         Simple: {
+          ...(unsubscribeUrl
+            ? {
+                Headers: [
+                  { Name: "List-Unsubscribe", Value: `<${unsubscribeUrl}>` },
+                  { Name: "List-Unsubscribe-Post", Value: "List-Unsubscribe=One-Click" },
+                ],
+              }
+            : {}),
           Subject: { Data: subject, Charset: "UTF-8" },
           Body: {
             Text: { Data: text, Charset: "UTF-8" },

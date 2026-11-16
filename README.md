@@ -140,6 +140,15 @@ The scraper keeps whatever the hotline prints. A color missing from the built-in
 is saved with its names and the page's own background (`META` / `color#<key>`), offered in the picker, and
 drawn with that look everywhere, so nothing needs a code change when the hotline adds one.
 
+## Email bounces, complaints, and unsubscribes
+
+Every alert email carries a one-click unsubscribe link (`/api/email/unsubscribe`, HMAC-signed per phone)
+and `List-Unsubscribe` headers. SES publishes bounces and complaints through the configuration set in
+`SES_CONFIGURATION_SET` to an SNS topic (`SES_EVENTS_TOPIC_ARN`), whose HTTPS subscription hits
+`/api/ses/events`; the handler verifies the SNS signature and topic, then removes the address from the
+subscriber on a permanent bounce or a complaint. The person sees why on their Alerts card and can add an
+address again. Setup: `scripts/setup-ses-events.sh`.
+
 ## STOP and START
 
 Carrier opt-outs are enforced by Amazon SNS. The site reads the SNS opted-out list on every notify run

@@ -16,6 +16,7 @@ type Subscriber = {
   prefs?: Prefs;
   agreedAt?: string;
   smsStopped?: string;
+  emailStopped?: { at: string; reason: "bounce" | "complaint" | "unsubscribe"; email: string };
   agreementVersion?: number;
   lastNotifiedDate?: string;
 };
@@ -344,6 +345,12 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
           <div className="mt-2">
             <PushButton />
           </div>
+
+          {existing?.emailStopped && !existing.email && (
+            <p className="mt-4 rounded-2xl border border-amber-300/40 bg-amber-300/15 px-4 py-3 text-sm text-fg-muted">
+              {s.prefs.emailStopped(existing.emailStopped.email, existing.emailStopped.reason)}
+            </p>
+          )}
 
           {existing?.smsStopped && (
             <p className="mt-4 rounded-2xl border border-amber-300/40 bg-amber-300/15 px-4 py-3 text-sm text-fg-muted">

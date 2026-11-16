@@ -231,6 +231,8 @@ const en = {
     testLimit: "You've used today's 3 test texts. Try again tomorrow.",
     testFailed: "Couldn't send the text. If this keeps happening, texting may not be enabled yet.",
     testEmailOnly: (e: string) => `The text couldn't be sent yet, but the email went to ${e}.`,
+    emailStopped: (e: string, why: string) =>
+      `Emails to ${e} were turned off (${why === "bounce" ? "the address bounced" : why === "complaint" ? "it was marked as spam" : "you used the stop link"}). Add an email again if you want them back.`,
     smsStopped: (n: string) => `Texts are off: this number replied STOP. Email and app notifications still go out. Text START to ${n} to turn texts back on.`,
   },
   day: {
@@ -256,6 +258,8 @@ const en = {
     `No colors are listed for today, ${day}. Unofficial tool - confirm at wasatch.org/colors or (385) 268-5002.`,
   smsLink: (url: string) => ` Saved copy of the page: ${url}`,
   emailSubject: { match: "Your color is up today", noMatch: "Not your color today" },
+  emailUnsubscribe: "Stop these emails",
+  emailWhy: "You get this because you added your email on isitmycolor.today.",
   privacy: {
     title: "Privacy policy",
     updated: "Last updated November 15, 2026",
@@ -642,6 +646,8 @@ const es: Dict = {
     testLimit: "Ya usaste los 3 textos de prueba de hoy. Intenta mañana.",
     testFailed: "No se pudo enviar el texto. Si sigue pasando, puede que los textos aún no estén habilitados.",
     testEmailOnly: (e: string) => `El texto aún no se pudo enviar, pero el correo llegó a ${e}.`,
+    emailStopped: (e: string, why: string) =>
+      `Los correos a ${e} se apagaron (${why === "bounce" ? "la dirección rebotó" : why === "complaint" ? "se marcó como spam" : "usaste el enlace para detenerlos"}). Agrega un correo de nuevo si los quieres.`,
     smsStopped: (n: string) => `Los textos están apagados: este número respondió STOP. El correo y las notificaciones siguen. Envía START al ${n} para reactivar los textos.`,
   },
   day: {
@@ -667,6 +673,8 @@ const es: Dict = {
     `Hoy no hay colores publicados, ${day}. Herramienta no oficial: confirma en wasatch.org/colors o al (385) 268-5002.`,
   smsLink: (url: string) => ` Copia guardada de la página: ${url}`,
   emailSubject: { match: "Hoy sale tu color", noMatch: "Hoy no es tu color" },
+  emailUnsubscribe: "Dejar de recibir estos correos",
+  emailWhy: "Recibes esto porque agregaste tu correo en isitmycolor.today.",
   privacy: {
     title: "Política de privacidad",
     updated: "Última actualización: 15 de noviembre de 2026",
