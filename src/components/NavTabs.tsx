@@ -7,8 +7,8 @@ import { useAnalyticsTab } from "./HiddenShortcuts";
 
 const TABS = [
   { href: "/", key: "today", icon: SunIcon },
-  { href: "/history", key: "history", icon: CalendarIcon },
   { href: "/notify", key: "alerts", icon: BellIcon },
+  { href: "/history", key: "history", icon: CalendarIcon },
   { href: "/official", key: "official", icon: LinkIcon },
   { href: "/resources", key: "resources", icon: HeartIcon },
   { href: "/about", key: "about", icon: InfoIcon },
