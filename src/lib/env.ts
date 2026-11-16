@@ -79,6 +79,16 @@ export const env = {
   get smsPending() {
     return read("SMS_PENDING") === "true";
   },
+  /** Web push (VAPID). Empty public key disables push. */
+  get vapidPublicKey() {
+    return read("VAPID_PUBLIC_KEY");
+  },
+  get vapidPrivateKey() {
+    return read("VAPID_PRIVATE_KEY");
+  },
+  get vapidSubject() {
+    return read("VAPID_SUBJECT");
+  },
   /** "true" logs SMS/email instead of sending (handy in dev). */
   get smsDryRun() {
     return read("SMS_DRY_RUN") === "true";

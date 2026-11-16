@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ColorInfo } from "@/lib/colors";
 import { useLang } from "./LangProvider";
+import { PushButton } from "./PushButton";
 
 type Prefs = { mode: "match" | "daily"; includeOfficial: boolean; earliestHour: number };
 const DEFAULT_PREFS: Prefs = { mode: "match", includeOfficial: false, earliestHour: 6 };
@@ -180,7 +181,7 @@ export function AlertsFlow({ smsPending = false }: { smsPending?: boolean }) {
         const msg = d.error === "limit" ? s.prefs.testLimit : s.prefs.testFailed;
         return setStatus({ kind: "err", msg });
       }
-      const msg = d.dryRun ? s.prefs.testDry : d.sms === "sent" ? s.prefs.testSent(sentTo) : s.prefs.testEmailOnly(email || sentTo);
+      const msg = d.dryRun ? s.prefs.testDry : d.sms === "sent" ? s.prefs.testSent(sentTo) : d.push === "sent" ? s.push.testSent : s.prefs.testEmailOnly(email || sentTo);
       setStatus({ kind: "ok", msg });
     } catch {
       setStatus({ kind: "err", msg: s.notify.network });
@@ -330,6 +331,10 @@ export function AlertsFlow({ smsPending = false }: { smsPending?: boolean }) {
                 ))}
               </select>
             </label>
+          </div>
+
+          <div className="mt-2">
+            <PushButton />
           </div>
 
           {statusLine}

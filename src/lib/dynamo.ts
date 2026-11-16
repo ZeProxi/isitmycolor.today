@@ -65,6 +65,8 @@ export type Subscriber = {
   agreementVersion?: number;
   /** epoch ms of recent "text me now" test sends, for rate limiting */
   testSends?: number[];
+  /** web push subscriptions (devices that allowed notifications) */
+  push?: { endpoint: string; keys: { p256dh: string; auth: string }; addedAt: string; ua?: string }[];
   /** Who owns this row once auth is added (Cognito sub). Unused for now. */
   ownerId?: string;
 };
@@ -94,6 +96,7 @@ export async function upsertSubscriber(input: {
     lang: input.lang ?? existing?.lang,
     prefs: input.prefs ?? existing?.prefs ?? DEFAULT_PREFS,
     testSends: existing?.testSends,
+    push: existing?.push,
     agreedAt: input.agree ? now : existing?.agreedAt,
     agreementVersion: input.agree ? AGREEMENT_VERSION : existing?.agreementVersion,
     active: true,

@@ -34,6 +34,9 @@ export const metadata: Metadata = {
   twitter: { card: "summary", title: TITLE, description: DESCRIPTION },
   robots: { index: true, follow: true },
   applicationName: "isitmycolor.today",
+  manifest: "/manifest.webmanifest",
+  icons: { apple: "/icons/apple-touch-icon.png" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "My color" },
 };
 
 export const viewport: Viewport = { themeColor: "#070b16", viewportFit: "cover" };

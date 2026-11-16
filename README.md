@@ -113,6 +113,14 @@ npx tsx scripts/sns-sandbox.ts verify +18015551234 123456
    link to the saved copy instead of a screenshot. A real screenshot (headless Chrome in a Lambda) could be
    added later for the email channel.
 
+## Push notifications and the flyer
+
+- The site is installable (manifest + icons). Signed-in people can turn on **web push** for a device from
+  the Alerts card; it's free and needs no carrier. On iPhone it only works after Add to Home Screen.
+  Keys: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (SecureString), `VAPID_SUBJECT` in SSM; generate with
+  `npx web-push generate-vapid-keys`.
+- `/flyer` is a printable one-page handout with a QR code to sign-up (Ctrl+P).
+
 ## Knowing when it breaks
 
 The daily job checks its own result. If the hotline page can't be fetched, parses to no colors, or still

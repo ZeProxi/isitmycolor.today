@@ -7,6 +7,7 @@ import { env } from "./env";
 import { ready } from "./config";
 import { requestScreenshot } from "./screenshot";
 import { diagnose, alertOwner } from "./health";
+import { sendPush } from "./push";
 import { colorInfo } from "./colors";
 import { t, isLang, type Lang } from "./i18n";
 
@@ -18,7 +19,7 @@ export type NotifyResult = {
   inNotifyWindow: boolean;
   hour: number;
   subscribersChecked: number;
-  notified: { phone: string; colors: string[]; kind: "match" | "daily"; messageId?: string; dryRun: boolean; email?: string; smsError?: string }[];
+  notified: { phone: string; colors: string[]; kind: "match" | "daily"; messageId?: string; dryRun: boolean; email?: string; smsError?: string; push?: string }[];
   skipped: { phone: string; reason: string }[];
   errors: { phone: string; error: string }[];
 };
@@ -190,9 +191,15 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
           email = `failed: ${e instanceof Error ? e.message : String(e)}`;
         }
       }
-      if (smsError && email !== "sent") throw new Error(smsError);
+      let push: string | undefined;
+      if (sub.push?.length) {
+        const title = t(langOf(sub)).emailSubject[matched.length ? "match" : "noMatch"];
+        const pr = await sendPush(sub.phone, sub.push, { title, body: message, url: dayPageUrl(snapshot) ?? "/", tag: `day-${snapshot.date}` });
+        push = pr.dryRun ? "dry-run" : `${pr.sent}/${pr.sent + pr.failed}`;
+      }
+      if (smsError && email !== "sent" && !push?.startsWith("1") && push !== "dry-run") throw new Error(smsError);
       await markNotified(sub.phone, snapshot.date!);
-      result.notified.push({ phone: sub.phone, colors: matched, kind: matched.length ? "match" : "daily", email, smsError, ...r });
+      result.notified.push({ phone: sub.phone, colors: matched, kind: matched.length ? "match" : "daily", email, smsError, push, ...r });
     } catch (e) {
       result.errors.push({ phone: sub.phone, error: e instanceof Error ? e.message : String(e) });
     }

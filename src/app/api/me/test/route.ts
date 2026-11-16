@@ -4,6 +4,7 @@ import { fetchColors } from "@/lib/scrape";
 import { buildMessage, buildEmailHtml } from "@/lib/notify";
 import { sendSms } from "@/lib/sms";
 import { sendEmail } from "@/lib/email";
+import { sendPush } from "@/lib/push";
 import { t, isLang } from "@/lib/i18n";
 
 const MAX_PER_DAY = 3;
@@ -56,8 +57,15 @@ export async function POST() {
     }
   }
 
-  if (sms === "failed" && email !== "sent") {
-    return Response.json({ error: "send_failed", detail: smsError, email }, { status: 502 });
+  let push: "sent" | "dry-run" | "none" | "failed" = "none";
+  if (sub.push?.length) {
+    const lang = isLang(sub.lang) ? sub.lang : "en";
+    const pr = await sendPush(phone, sub.push, { title: t(lang).emailSubject[matched.length ? "match" : "noMatch"], body: message, url: "/", tag: "test" });
+    push = pr.dryRun ? "dry-run" : pr.sent > 0 ? "sent" : "failed";
   }
-  return Response.json({ ok: true, sms, dryRun: sms === "dry-run", email, remaining: MAX_PER_DAY - recent.length - 1 });
+
+  if (sms === "failed" && email !== "sent" && push !== "sent" && push !== "dry-run") {
+    return Response.json({ error: "send_failed", detail: smsError, email, push }, { status: 502 });
+  }
+  return Response.json({ ok: true, sms, dryRun: sms === "dry-run", email, push, remaining: MAX_PER_DAY - recent.length - 1 });
 }
