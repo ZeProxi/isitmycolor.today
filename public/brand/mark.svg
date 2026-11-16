@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b1326"/>
+      <stop offset="1" stop-color="#1c2140"/>
+    </linearGradient>
+    <linearGradient id="sun" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fde047"/>
+      <stop offset="0.55" stop-color="#f97316"/>
+      <stop offset="1" stop-color="#ec4899"/>
+    </linearGradient>
+    <linearGradient id="back" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#46507f"/>
+      <stop offset="1" stop-color="#262d52"/>
+    </linearGradient>
+    <linearGradient id="front" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1f2546"/>
+      <stop offset="1" stop-color="#0c1124"/>
+    </linearGradient>
+    <clipPath id="round"><rect width="256" height="256" rx="56"/></clipPath>
+  </defs>
+  <g clip-path="url(#round)">
+    <rect width="256" height="256" fill="url(#sky)"/>
+    <!-- sun: three color discs, the way the hotline lists its colors -->
+    <circle cx="146" cy="104" r="44" fill="#16a34a" opacity="0.95"/>
+    <circle cx="182" cy="98" r="44" fill="#2563eb" opacity="0.9"/>
+    <circle cx="166" cy="76" r="46" fill="url(#sun)"/>
+    <!-- back ridge: the long Timpanogos-style massif -->
+    <path d="M-10 196 L26 150 L54 166 L86 118 L112 142 L128 134 L150 150 L178 128 L206 150 L232 122 L270 158 L270 260 L-10 260 Z" fill="url(#back)"/>
+    <!-- a thin light edge on the back ridge so it separates from the sky -->
+    <path d="M-10 196 L26 150 L54 166 L86 118 L112 142 L128 134 L150 150 L178 128 L206 150 L232 122 L270 158" fill="none" stroke="#ffffff" stroke-opacity="0.18" stroke-width="3" stroke-linejoin="round"/>
+    <!-- front ridge -->
+    <path d="M-10 236 L22 198 L50 214 L84 180 L114 206 L140 192 L170 216 L200 186 L234 214 L270 200 L270 270 L-10 270 Z" fill="url(#front)"/>
+    <path d="M-10 236 L22 198 L50 214 L84 180 L114 206 L140 192 L170 216 L200 186 L234 214 L270 200" fill="none" stroke="#ffffff" stroke-opacity="0.1" stroke-width="3" stroke-linejoin="round"/>
+  </g>
+</svg>

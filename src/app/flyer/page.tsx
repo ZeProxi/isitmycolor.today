@@ -25,7 +25,11 @@ export default async function FlyerPage() {
         <span>Print this page (Ctrl+P / Cmd+P). It&apos;s sized for a letter sheet.</span>
       </div>
 
-      <h1 className="text-5xl font-extrabold leading-none tracking-tight">Is it my color today?</h1>
+      <div className="flex items-center gap-4">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brand/mark.svg" alt="" width={72} height={72} className="h-[72px] w-[72px] rounded-2xl" />
+        <h1 className="text-5xl font-extrabold leading-none tracking-tight">Is it my color today?</h1>
+      </div>
       <p className="mt-3 text-2xl font-semibold text-black/70">¿Es mi color hoy?</p>
 
       <div className="mt-8 grid grid-cols-[1fr_220px] items-start gap-8">

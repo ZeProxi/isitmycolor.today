@@ -44,7 +44,10 @@ export async function Shell({ children }: { children: React.ReactNode }) {
       )}
       <header className="sticky top-0 z-30 border-b border-white/5 bg-ink/55 backdrop-blur-xl">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <Link href="/" className="display flex items-baseline gap-2 text-lg font-bold">
+          <Link href="/" className="display flex items-center gap-2.5 text-lg font-bold">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/mark.svg" alt="" width={28} height={28} className="h-7 w-7 rounded-lg" />
+            {brand}
             {mine.length > 0 && (
               <span className="inline-flex translate-y-[-1px] items-center" title={mine.map((k) => colorInfo(k).english).join(", ")}>
                 {mine.slice(0, 3).map((k, i) => {
@@ -59,7 +62,6 @@ export async function Shell({ children }: { children: React.ReactNode }) {
                 })}
               </span>
             )}
-            {brand}
           </Link>
           <NavTabs placement="top" />
           <div className="flex items-center gap-2">
