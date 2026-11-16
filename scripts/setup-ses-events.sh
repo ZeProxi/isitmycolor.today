@@ -14,7 +14,7 @@ echo "topic: $TOPIC_ARN"
 aws sns set-topic-attributes --region "$REGION" --topic-arn "$TOPIC_ARN" --attribute-name Policy --attribute-value "{
   \"Version\":\"2012-10-17\",
   \"Statement\":[
-    {\"Sid\":\"owner\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::$ACCOUNT:root\"},\"Action\":\"SNS:*\",\"Resource\":\"$TOPIC_ARN\"},
+    {\"Sid\":\"owner\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::$ACCOUNT:root\"},\"Action\":[\"SNS:Publish\",\"SNS:Subscribe\",\"SNS:Receive\",\"SNS:GetTopicAttributes\",\"SNS:SetTopicAttributes\",\"SNS:ListSubscriptionsByTopic\",\"SNS:DeleteTopic\",\"SNS:AddPermission\",\"SNS:RemovePermission\"],\"Resource\":\"$TOPIC_ARN\"},
     {\"Sid\":\"ses\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"ses.amazonaws.com\"},\"Action\":\"SNS:Publish\",\"Resource\":\"$TOPIC_ARN\",
      \"Condition\":{\"StringEquals\":{\"AWS:SourceAccount\":\"$ACCOUNT\"}}}
   ]}"
