@@ -1,8 +1,8 @@
-import { Suspense } from "react";
+import { Fragment, Suspense } from "react";
 import type { Metadata } from "next";
 import { getLang } from "@/lib/lang-server";
 import { t } from "@/lib/i18n";
-import { RESOURCE_SECTIONS } from "@/lib/resources";
+import { RESOURCE_SECTIONS, COMMUNITIES } from "@/lib/resources";
 import { PageSkeleton } from "@/components/PageSkeleton";
 
 export const metadata: Metadata = { title: "Resources" };
@@ -45,7 +45,32 @@ async function ResourcesContent() {
       </div>
 
       {RESOURCE_SECTIONS.map((sec) => (
-        <section key={sec.id} id={sec.id}>
+        <Fragment key={sec.id}>
+        {sec.id === "prevention" && (
+          <section id="communities">
+            <h2 className="flex items-center gap-2 text-2xl font-bold">
+              <RedditIcon />
+              {s.communitiesTitle}
+            </h2>
+            <p className="mt-1 text-sm text-fg-muted">{s.communitiesHelp}</p>
+            <ul className="glass mt-4 divide-y divide-white/10 rounded-3xl">
+              {COMMUNITIES.map((c) => (
+                <li key={c.name}>
+                  <a href={c.href} target="_blank" rel="noreferrer" className="flex items-center gap-3 px-4 py-3 transition hover:bg-white/5">
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold">{c.name}</span>
+                      <span className="block text-sm text-fg-muted">{c.blurb[lang]}</span>
+                    </span>
+                    <svg className="h-4 w-4 shrink-0 text-fg-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M7 17L17 7M8 7h9v9" />
+                    </svg>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        <section id={sec.id}>
           <h2 className="text-2xl font-bold">{sec.title[lang]}</h2>
           {sec.intro && <p className="mt-1 max-w-prose text-sm text-fg-muted">{sec.intro[lang]}</p>}
           <ul className="mt-4 grid gap-3 md:grid-cols-2">
@@ -70,9 +95,18 @@ async function ResourcesContent() {
             ))}
           </ul>
         </section>
+        </Fragment>
       ))}
 
       <p className="max-w-prose text-xs text-fg-faint">{s.footnote}</p>
     </div>
+  );
+}
+
+function RedditIcon() {
+  return (
+    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M22 12.1c0-1.2-1-2.2-2.2-2.2-.6 0-1.1.2-1.5.6-1.5-1-3.5-1.7-5.7-1.8l1-4.6 3.2.7c0 .8.7 1.5 1.5 1.5s1.5-.7 1.5-1.5-.7-1.5-1.5-1.5c-.6 0-1.1.3-1.3.8l-3.6-.8c-.2 0-.4.1-.4.3l-1.1 5.1c-2.2.1-4.2.7-5.8 1.8-.4-.4-.9-.6-1.5-.6C3 9.9 2 10.9 2 12.1c0 .9.5 1.6 1.2 2-.1.3-.1.6-.1.9 0 3.3 3.9 6 8.8 6s8.8-2.7 8.8-6c0-.3 0-.6-.1-.9.8-.4 1.4-1.1 1.4-2zM7 13.6c0-.8.7-1.5 1.5-1.5s1.5.7 1.5 1.5-.7 1.5-1.5 1.5S7 14.4 7 13.6zm8.5 4c-1 1-2.6 1.1-3.5 1.1s-2.5-.1-3.5-1.1c-.2-.2-.2-.4 0-.6.2-.2.4-.2.6 0 .7.7 2 .8 2.9.8s2.2-.1 2.9-.8c.2-.2.4-.2.6 0 .1.2.1.5 0 .6zm-.1-2.5c-.8 0-1.5-.7-1.5-1.5s.7-1.5 1.5-1.5 1.5.7 1.5 1.5-.7 1.5-1.5 1.5z" />
+    </svg>
   );
 }

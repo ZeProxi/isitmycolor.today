@@ -339,6 +339,8 @@ const en = {
     callOrText: "call or text, 24/7",
     emergencyLabel: "Emergency",
     emergencyWhen: "overdose, not breathing, in immediate danger",
+    communitiesTitle: "Online communities",
+    communitiesHelp: "Peer groups on Reddit. Free, anonymous, any hour.",
     footnote: "Checked against each organization's own site on November 15, 2026. Not affiliated with any of them.",
   },
   why: {
@@ -703,6 +705,8 @@ const es: Dict = {
     callOrText: "llama o escribe, 24/7",
     emergencyLabel: "Emergencia",
     emergencyWhen: "sobredosis, no respira, peligro inmediato",
+    communitiesTitle: "Comunidades en línea",
+    communitiesHelp: "Grupos entre pares en Reddit. Gratis, anónimos, a cualquier hora.",
     footnote: "Verificado en el sitio propio de cada organización el 15 de noviembre de 2026. Sin afiliación con ninguna de ellas.",
   },
   why: {

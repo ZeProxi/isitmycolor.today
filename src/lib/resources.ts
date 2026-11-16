@@ -19,6 +19,9 @@ export type Resource = {
 
 export type ResourceSection = { id: string; title: Text; intro?: Text; items: Resource[] };
 
+export type Community = { name: string; blurb: Text; href: string };
+
+
 const t = (en: string, es: string): Text => ({ en, es });
 
 export const RESOURCE_SECTIONS: ResourceSection[] = [
@@ -131,39 +134,6 @@ export const RESOURCE_SECTIONS: ResourceSection[] = [
         ],
       },
       {
-        name: t("r/stopdrinking", "r/stopdrinking"),
-        blurb: t(
-          "A large, kind online community of people quitting or cutting back on alcohol. Daily check-ins, no judgment, any hour.",
-          "Una comunidad en línea grande y amable de personas que dejan o reducen el alcohol. Registros diarios, sin juicios, a cualquier hora.",
-        ),
-        actions: [{ label: t("Visit on Reddit", "Visitar en Reddit"), href: "https://www.reddit.com/r/stopdrinking/" }],
-        meta: t("Online · free", "En línea · gratis"),
-      },
-      {
-        name: t("r/REDDITORSINRECOVERY", "r/REDDITORSINRECOVERY"),
-        blurb: t("Recovery from any substance.", "Recuperación de cualquier sustancia."),
-        actions: [{ label: t("Visit on Reddit", "Visitar en Reddit"), href: "https://www.reddit.com/r/REDDITORSINRECOVERY/" }],
-        meta: t("Online · free", "En línea · gratis"),
-      },
-      {
-        name: t("r/leaves", "r/leaves"),
-        blurb: t("Quitting cannabis.", "Dejar el cannabis."),
-        actions: [{ label: t("Visit on Reddit", "Visitar en Reddit"), href: "https://www.reddit.com/r/leaves/" }],
-        meta: t("Online · free", "En línea · gratis"),
-      },
-      {
-        name: t("r/OpiatesRecovery", "r/OpiatesRecovery"),
-        blurb: t("Opioid recovery, including on Suboxone or methadone.", "Recuperación de opioides, incluso con Suboxone o metadona."),
-        actions: [{ label: t("Visit on Reddit", "Visitar en Reddit"), href: "https://www.reddit.com/r/OpiatesRecovery/" }],
-        meta: t("Online · free", "En línea · gratis"),
-      },
-      {
-        name: t("r/StopSpeeding", "r/StopSpeeding"),
-        blurb: t("Quitting meth and other stimulants.", "Dejar la metanfetamina y otros estimulantes."),
-        actions: [{ label: t("Visit on Reddit", "Visitar en Reddit"), href: "https://www.reddit.com/r/StopSpeeding/" }],
-        meta: t("Online · free", "En línea · gratis"),
-      },
-      {
         name: t("For family and friends", "Para familiares y amigos"),
         blurb: t(
           "Al-Anon and Nar-Anon are free groups for people affected by someone else's drinking or drug use.",
@@ -189,12 +159,6 @@ export const RESOURCE_SECTIONS: ResourceSection[] = [
         ],
       },
       {
-        name: t("r/SuicideWatch", "r/SuicideWatch"),
-        blurb: t("Peer support from people who've been there. Not a crisis line: call 988 first.", "Apoyo entre pares de personas que han pasado por lo mismo. No es una línea de crisis: llama primero al 988."),
-        actions: [{ label: t("Visit on Reddit", "Visitar en Reddit"), href: "https://www.reddit.com/r/SuicideWatch/" }],
-        meta: t("Online · free", "En línea · gratis"),
-      },
-      {
         name: t("SafeUT", "SafeUT"),
         blurb: t("24/7 crisis chat for Utah students and teens, run by University of Utah Health.", "Chat de crisis 24/7 para estudiantes y adolescentes de Utah, operado por University of Utah Health."),
         actions: [{ label: t("safeut.org", "safeut.org"), href: "https://safeut.org/" }],
@@ -202,4 +166,14 @@ export const RESOURCE_SECTIONS: ResourceSection[] = [
       },
     ],
   },
+];
+
+/** Peer communities on Reddit. Shown as a compact list under "Online communities". */
+export const COMMUNITIES: Community[] = [
+  { name: "r/stopdrinking", blurb: t("Quitting or cutting back on alcohol. Daily check-ins, no judgment.", "Dejar o reducir el alcohol. Registros diarios, sin juicios."), href: "https://www.reddit.com/r/stopdrinking/" },
+  { name: "r/REDDITORSINRECOVERY", blurb: t("Recovery from any substance.", "Recuperación de cualquier sustancia."), href: "https://www.reddit.com/r/REDDITORSINRECOVERY/" },
+  { name: "r/leaves", blurb: t("Quitting cannabis.", "Dejar el cannabis."), href: "https://www.reddit.com/r/leaves/" },
+  { name: "r/OpiatesRecovery", blurb: t("Opioid recovery, including on Suboxone or methadone.", "Recuperación de opioides, incluso con Suboxone o metadona."), href: "https://www.reddit.com/r/OpiatesRecovery/" },
+  { name: "r/StopSpeeding", blurb: t("Quitting meth and other stimulants.", "Dejar la metanfetamina y otros estimulantes."), href: "https://www.reddit.com/r/StopSpeeding/" },
+  { name: "r/SuicideWatch", blurb: t("Peer support from people who've been there. Not a crisis line: call 988 first.", "Apoyo entre pares de personas que han pasado por lo mismo. No es una línea de crisis: llama primero al 988."), href: "https://www.reddit.com/r/SuicideWatch/" },
 ];
