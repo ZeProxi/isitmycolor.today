@@ -38,6 +38,7 @@ export function AlertHistory({ refreshKey = 0 }: { refreshKey?: number }) {
       <span key={label} className={`inline-flex items-center gap-1 ${tone}`}>
         <span aria-hidden>{st === "sent" ? "✓" : st === "failed" ? "✕" : "·"}</span>
         {label}
+        {st === "stopped" ? ` (${s.alertLog.stopped})` : ""}
       </span>
     );
   };

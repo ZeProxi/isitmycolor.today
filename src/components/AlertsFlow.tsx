@@ -15,6 +15,7 @@ type Subscriber = {
   email?: string;
   prefs?: Prefs;
   agreedAt?: string;
+  smsStopped?: string;
   agreementVersion?: number;
   lastNotifiedDate?: string;
 };
@@ -30,7 +31,10 @@ const STEP_INDEX: Record<Exclude<Step, "loading" | "done">, number> = { phone: 0
  *   phone -> code -> colors -> email (optional) -> done
  * Returning people with an alert land on "done" and edit from there.
  */
-export function AlertsFlow({ smsPending = false }: { smsPending?: boolean }) {
+/** "+18777453950" -> "877-745-3950" for the START instructions. */
+const prettyNumber = (n: string) => n.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, "$1-$2-$3") || "the number that texts you";
+
+export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?: boolean; smsNumber?: string }) {
   const { lang, s } = useLang();
   const [step, setStep] = useState<Step>("loading");
   const [phone, setPhone] = useState("");
@@ -117,6 +121,7 @@ export function AlertsFlow({ smsPending = false }: { smsPending?: boolean }) {
         const msg =
           d.error === "rate_limited" ? s.auth.tooMany
           : d.error === "sms_failed" ? s.auth.smsFailed
+          : d.error === "opted_out" ? s.auth.optedOut(prettyNumber(smsNumber))
           : d.error === "invalid_phone" ? s.notify.phoneLabel
           : s.auth.wrongCode;
         return setStatus({ kind: "err", msg });
@@ -181,7 +186,7 @@ export function AlertsFlow({ smsPending = false }: { smsPending?: boolean }) {
       setTestCount((n) => n + 1);
       if (r.status === 401) return signedOut();
       if (!r.ok) {
-        const msg = d.error === "limit" ? s.prefs.testLimit : s.prefs.testFailed;
+        const msg = d.error === "limit" ? s.prefs.testLimit : d.error === "sms_stopped" ? s.prefs.smsStopped(prettyNumber(smsNumber)) : s.prefs.testFailed;
         return setStatus({ kind: "err", msg });
       }
       const msg = d.dryRun ? s.prefs.testDry : d.sms === "sent" ? s.prefs.testSent(sentTo) : d.push === "sent" ? s.push.testSent : s.prefs.testEmailOnly(email || sentTo);
@@ -339,6 +344,12 @@ export function AlertsFlow({ smsPending = false }: { smsPending?: boolean }) {
           <div className="mt-2">
             <PushButton />
           </div>
+
+          {existing?.smsStopped && (
+            <p className="mt-4 rounded-2xl border border-amber-300/40 bg-amber-300/15 px-4 py-3 text-sm text-fg-muted">
+              {s.prefs.smsStopped(prettyNumber(smsNumber))}
+            </p>
+          )}
 
           {statusLine}
 

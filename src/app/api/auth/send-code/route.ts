@@ -20,6 +20,6 @@ export async function POST(req: NextRequest) {
   if (!(await allow(`codes:day:${today()}`, 300, 86400))) return Response.json({ error: "rate_limited" }, { status: 429 });
 
   const r = await sendCode(phone);
-  if (!r.ok) return Response.json({ error: r.error }, { status: r.error === "rate_limited" ? 429 : 502 });
+  if (!r.ok) return Response.json({ error: r.error }, { status: r.error === "rate_limited" ? 429 : r.error === "opted_out" ? 409 : 502 });
   return Response.json({ ok: true, phone, devCode: r.devCode });
 }

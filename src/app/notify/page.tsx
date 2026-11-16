@@ -18,7 +18,7 @@ async function NotifyContent() {
   await ready();
   return (
     <div className="pt-6 sm:pt-10">
-      <AlertsFlow smsPending={env.smsPending} />
+      <AlertsFlow smsPending={env.smsPending} smsNumber={env.smsOriginationNumber} />
     </div>
   );
 }

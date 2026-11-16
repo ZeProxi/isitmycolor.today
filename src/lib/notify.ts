@@ -1,8 +1,8 @@
 import { fetchColors, type ColorsSnapshot } from "./scrape";
-import { listActiveSubscribers, markNotified, saveSnapshot, DEFAULT_PREFS, type Subscriber } from "./dynamo";
-import { sendSms } from "./sms";
+import { listActiveSubscribers, markNotified, saveSnapshot, setSmsStopped, DEFAULT_PREFS, type Subscriber } from "./dynamo";
+import { sendSms, listOptedOut } from "./sms";
 import { sendEmail } from "./email";
-import { todayIsoMountain, hourMountain } from "./dates";
+import { todayIsoMountain, hourMountain, nowIso } from "./dates";
 import { env } from "./env";
 import { ready } from "./config";
 import { requestScreenshot } from "./screenshot";
@@ -158,7 +158,17 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
   const subscribers = await listActiveSubscribers();
   result.subscribersChecked = subscribers.length;
 
+  // Numbers that replied STOP: the carrier already blocks them; we stop trying and say so.
+  const optedOut = await listOptedOut();
   for (const sub of subscribers) {
+    if (optedOut) {
+      const off = optedOut.has(sub.phone);
+      if (off !== !!sub.smsStopped) {
+        await setSmsStopped(sub.phone, off);
+        sub.smsStopped = off ? nowIso() : undefined;
+      }
+    }
+    const smsOff = !!sub.smsStopped;
     const prefs = sub.prefs ?? DEFAULT_PREFS;
     const matched = sub.colors.filter((c) => todayKeys.has(c));
     if (matched.length === 0 && prefs.mode !== "daily") {
@@ -177,10 +187,12 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
       const message = buildMessage(snapshot, matched, sub);
       let r: { messageId?: string; dryRun: boolean } = { dryRun: false };
       let smsError: string | undefined;
-      try {
-        r = await sendSms(sub.phone, message);
-      } catch (e) {
-        smsError = e instanceof Error ? e.message : String(e);
+      if (!smsOff) {
+        try {
+          r = await sendSms(sub.phone, message);
+        } catch (e) {
+          smsError = e instanceof Error ? e.message : String(e);
+        }
       }
       let email: string | undefined;
       if (sub.email) {
@@ -204,7 +216,7 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
         date: snapshot.date!,
         kind: matched.length ? "match" : "daily",
         colors: matched,
-        sms: smsError ? "failed" : r.dryRun ? "dry-run" : "sent",
+        sms: smsOff ? "stopped" : smsError ? "failed" : r.dryRun ? "dry-run" : "sent",
         email: st(email),
         push: st(push),
       });

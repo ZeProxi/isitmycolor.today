@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { env } from "./env";
 import { getOtp, putOtp, deleteOtp } from "./dynamo";
-import { sendSms } from "./sms";
+import { sendSms, isOptedOut } from "./sms";
 import { ready } from "./config";
 
 /**
@@ -32,7 +32,7 @@ function safeEqual(a: string, b: string) {
 
 // ---------- one-time codes ----------
 
-export type SendResult = { ok: true; devCode?: string } | { ok: false; error: "rate_limited" | "sms_failed" };
+export type SendResult = { ok: true; devCode?: string } | { ok: false; error: "rate_limited" | "sms_failed" | "opted_out" };
 
 export async function sendCode(phone: string): Promise<SendResult> {
   await ready();
@@ -40,6 +40,7 @@ export async function sendCode(phone: string): Promise<SendResult> {
   const prev = await getOtp(phone);
   const recent = (prev?.sentAt ?? []).filter((t) => now - t < SEND_WINDOW_MS);
   if (recent.length >= MAX_SENDS_PER_WINDOW) return { ok: false, error: "rate_limited" };
+  if (await isOptedOut(phone)) return { ok: false, error: "opted_out" }; // the carrier would drop it anyway
 
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   await putOtp({

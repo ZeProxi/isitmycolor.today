@@ -10,7 +10,7 @@ import { nowIso } from "./dates";
  * table under pk "ALERT#<phone>", kept a year (TTL). Readable only through the
  * session cookie, which needs the phone code first.
  */
-export type ChannelStatus = "sent" | "failed" | "dry-run" | "skipped";
+export type ChannelStatus = "sent" | "failed" | "dry-run" | "skipped" | "stopped";
 export type AlertEntry = {
   at: string; // ISO timestamp
   date: string; // the color day it was about

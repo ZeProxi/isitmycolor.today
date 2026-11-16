@@ -1,8 +1,8 @@
 import { currentPhone } from "@/lib/auth";
-import { getSubscriber, recordTestSend } from "@/lib/dynamo";
+import { getSubscriber, recordTestSend, setSmsStopped } from "@/lib/dynamo";
 import { fetchColors } from "@/lib/scrape";
 import { buildMessage, buildEmailHtml } from "@/lib/notify";
-import { sendSms } from "@/lib/sms";
+import { sendSms, isOptedOut } from "@/lib/sms";
 import { sendEmail } from "@/lib/email";
 import { sendPush } from "@/lib/push";
 import { logAlert } from "@/lib/alertlog";
@@ -38,13 +38,19 @@ export async function POST() {
 
   await recordTestSend(phone, [...recent, now]);
 
-  let sms: "sent" | "dry-run" | "failed" = "failed";
+  let sms: "sent" | "dry-run" | "failed" | "stopped" = "failed";
   let smsError: string | undefined;
-  try {
-    const r = await sendSms(phone, message);
-    sms = r.dryRun ? "dry-run" : "sent";
-  } catch (e) {
-    smsError = e instanceof Error ? e.message : String(e);
+  const stopped = await isOptedOut(phone); // replied STOP to the carrier
+  if (stopped !== !!sub.smsStopped) await setSmsStopped(phone, stopped);
+  if (stopped) {
+    sms = "stopped";
+  } else {
+    try {
+      const r = await sendSms(phone, message);
+      sms = r.dryRun ? "dry-run" : "sent";
+    } catch (e) {
+      smsError = e instanceof Error ? e.message : String(e);
+    }
   }
 
   let email: "sent" | "dry-run" | "skipped" | "failed" | undefined;
@@ -67,8 +73,8 @@ export async function POST() {
 
   await logAlert(phone, { date: snapshot.date ?? "", kind: "test", colors: matched, sms, email, push: push === "none" ? undefined : push });
 
-  if (sms === "failed" && email !== "sent" && push !== "sent" && push !== "dry-run") {
-    return Response.json({ error: "send_failed", detail: smsError, email, push }, { status: 502 });
+  if ((sms === "failed" || sms === "stopped") && email !== "sent" && push !== "sent" && push !== "dry-run") {
+    return Response.json({ error: sms === "stopped" ? "sms_stopped" : "send_failed", detail: smsError, email, push }, { status: sms === "stopped" ? 409 : 502 });
   }
   return Response.json({ ok: true, sms, dryRun: sms === "dry-run", email, push, remaining: MAX_PER_DAY - recent.length - 1 });
 }

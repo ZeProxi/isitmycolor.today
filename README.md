@@ -134,6 +134,14 @@ Each send attempt is logged per phone (`ALERT#<phone>` rows in the history table
 signed-in person can see their own alert history on the Alerts tab. It is readable only with the session
 cookie and is deleted with the subscription.
 
+## STOP and START
+
+Carrier opt-outs are enforced by Amazon SNS. The site reads the SNS opted-out list on every notify run
+and before any sign-in code or test text, marks those subscribers `smsStopped`, skips their text channel
+(email and push continue), shows "stopped" in their alert history, and tells them to text START to the
+toll-free number to get texts back. The compute role needs `sns:ListPhoneNumbersOptedOut` and
+`sns:CheckIfPhoneNumberIsOptedOut`.
+
 ## Knowing when it breaks
 
 The daily job checks its own result. If the hotline page can't be fetched, parses to no colors, or still

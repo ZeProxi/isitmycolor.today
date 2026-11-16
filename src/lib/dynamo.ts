@@ -65,6 +65,8 @@ export type Subscriber = {
   agreementVersion?: number;
   /** epoch ms of recent "text me now" test sends, for rate limiting */
   testSends?: number[];
+  /** ISO time we noticed this number replied STOP to the carrier; texts are skipped until it replies START. */
+  smsStopped?: string;
   /** web push subscriptions (devices that allowed notifications) */
   push?: { endpoint: string; keys: { p256dh: string; auth: string }; addedAt: string; ua?: string }[];
   /** Who owns this row once auth is added (Cognito sub). Unused for now. */
@@ -138,6 +140,18 @@ export async function markNotified(phone: string, date: string) {
       Key: { phone },
       UpdateExpression: "SET lastNotifiedDate = :d, updatedAt = :u",
       ExpressionAttributeValues: { ":d": date, ":u": nowIso() },
+    }),
+  );
+}
+
+/** Record (or clear) that the carrier has this number opted out of texts. */
+export async function setSmsStopped(phone: string, stopped: boolean) {
+  await (await client()).send(
+    new UpdateCommand({
+      TableName: env.subscribersTable,
+      Key: { phone },
+      UpdateExpression: stopped ? "SET smsStopped = :t, updatedAt = :u" : "REMOVE smsStopped SET updatedAt = :u",
+      ExpressionAttributeValues: stopped ? { ":t": nowIso(), ":u": nowIso() } : { ":u": nowIso() },
     }),
   );
 }

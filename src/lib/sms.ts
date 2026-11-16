@@ -1,4 +1,4 @@
-import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
+import { SNSClient, PublishCommand, CheckIfPhoneNumberIsOptedOutCommand, ListPhoneNumbersOptedOutCommand } from "@aws-sdk/client-sns";
 import { env, awsCredentials } from "./env";
 import { ready } from "./config";
 
@@ -39,4 +39,39 @@ export async function sendSms(
     }),
   );
   return { messageId: r.MessageId, dryRun: false };
+}
+
+/**
+ * STOP replies are handled by Amazon SNS, which keeps its own opted-out list and
+ * refuses to deliver to those numbers. These two lookups let the site know about
+ * it, so it stops trying, records it honestly, and can tell the person how to
+ * get texts back (reply START).
+ */
+export async function isOptedOut(phone: string): Promise<boolean> {
+  await ready();
+  try {
+    const r = await sns().send(new CheckIfPhoneNumberIsOptedOutCommand({ phoneNumber: phone }));
+    return !!r.isOptedOut;
+  } catch (e) {
+    console.warn("opt-out check failed", e instanceof Error ? e.message : e);
+    return false; // SNS still enforces the opt-out itself; we just won't know this run
+  }
+}
+
+/** Every number currently opted out, or null if the list couldn't be read. */
+export async function listOptedOut(): Promise<Set<string> | null> {
+  await ready();
+  const out = new Set<string>();
+  let nextToken: string | undefined;
+  try {
+    do {
+      const r = await sns().send(new ListPhoneNumbersOptedOutCommand({ nextToken }));
+      for (const n of r.phoneNumbers ?? []) out.add(n);
+      nextToken = r.nextToken;
+    } while (nextToken);
+    return out;
+  } catch (e) {
+    console.warn("opt-out list failed", e instanceof Error ? e.message : e);
+    return null;
+  }
 }
