@@ -28,7 +28,7 @@ const STEP_INDEX: Record<Exclude<Step, "loading" | "done">, number> = { phone: 0
  *   phone -> code -> colors -> email (optional) -> done
  * Returning people with an alert land on "done" and edit from there.
  */
-export function AlertsFlow() {
+export function AlertsFlow({ smsPending = false }: { smsPending?: boolean }) {
   const { lang, s } = useLang();
   const [step, setStep] = useState<Step>("loading");
   const [phone, setPhone] = useState("");
@@ -370,6 +370,12 @@ export function AlertsFlow() {
       <section className="glass glass-strong mt-4 rounded-3xl p-6 sm:p-8">
         {step === "phone" && (
           <form onSubmit={requestCode}>
+            {smsPending && (
+              <div className="mb-5 rounded-2xl border border-amber-300/40 bg-amber-300/15 p-4 text-sm">
+                <p className="font-semibold text-amber-200">{s.auth.pendingTitle}</p>
+                <p className="mt-1 text-fg-muted">{s.auth.pendingBody}</p>
+              </div>
+            )}
             <h2 className="text-xl font-bold sm:text-2xl">{s.wizard.phoneTitle}</h2>
             <p className="mt-2 text-sm text-fg-muted">{s.wizard.phoneHelp}</p>
             <input
@@ -386,7 +392,7 @@ export function AlertsFlow() {
             />
             <p className="mt-2 text-xs text-fg-faint">{s.notify.usNumbers}</p>
             {statusLine}
-            <button type="submit" disabled={busy || phone.replace(/\D/g, "").length < 10} className="btn-primary mt-6 w-full">
+            <button type="submit" disabled={smsPending || busy || phone.replace(/\D/g, "").length < 10} className="btn-primary mt-6 w-full">
               {busy ? s.auth.sending : s.auth.sendCode}
             </button>
           </form>

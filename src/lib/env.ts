@@ -75,6 +75,10 @@ export const env = {
   get siteSunset() {
     return read("SITE_SUNSET") === "true";
   },
+  /** "true" while the texting number awaits carrier approval: sign-up shows a notice and pauses. */
+  get smsPending() {
+    return read("SMS_PENDING") === "true";
+  },
   /** "true" logs SMS/email instead of sending (handy in dev). */
   get smsDryRun() {
     return read("SMS_DRY_RUN") === "true";

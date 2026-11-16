@@ -162,6 +162,8 @@ const en = {
     already: "Already signed up? Enter the same number and we'll text you a code to open your alert.",
     devCode: (c: string) => `Dev mode: texts are off, your code is ${c}.`,
     why: "Entering the code proves it's your phone. That's your sign-in; there's no password.",
+    pendingTitle: "Texts are awaiting carrier approval",
+    pendingBody: "Our texting number is being verified, which takes a few business days. Sign-up opens the moment it clears. Until then, keep checking the official page each morning.",
   },
   wizard: {
     steps: ["Phone", "Code", "Colors", "Email", "Agree"],
@@ -524,6 +526,8 @@ const es: Dict = {
     already: "¿Ya te registraste? Escribe el mismo número y te enviamos un código para abrir tu alerta.",
     devCode: (c: string) => `Modo de desarrollo: los textos están apagados, tu código es ${c}.`,
     why: "Escribir el código demuestra que el teléfono es tuyo. Esa es tu sesión; no hay contraseña.",
+    pendingTitle: "Los textos esperan la aprobación de la operadora",
+    pendingBody: "Nuestro número de textos está en verificación, lo que toma unos días hábiles. El registro se abre en cuanto se apruebe. Mientras tanto, sigue revisando la página oficial cada mañana.",
   },
   wizard: {
     steps: ["Teléfono", "Código", "Colores", "Correo", "Acuerdo"],
