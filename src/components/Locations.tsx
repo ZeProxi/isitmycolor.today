@@ -14,6 +14,21 @@ function fmtLeft(hours: number, lang: "en" | "es"): string {
   return lang === "es" ? `${h} h ${m} min` : `${h} h ${m} min`;
 }
 
+/** "8 am – 12 pm, 12:30 pm – 4:30 pm" that only ever wraps between ranges, never inside one. */
+function Ranges({ text }: { text: string }) {
+  const parts = text.split(", ");
+  return (
+    <>
+      {parts.map((p, i) => (
+        <span key={i} className="inline-block whitespace-nowrap">
+          {p}
+          {i < parts.length - 1 && ", "}
+        </span>
+      ))}
+    </>
+  );
+}
+
 export async function Locations() {
   await connection();
   const lang = await getLang();
@@ -52,21 +67,27 @@ export async function Locations() {
           const note = loc.weekend.length ? s.jkNote : s.clinicNote;
           return (
             <article key={loc.name} className="glass flex flex-col rounded-3xl p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
+              {/* The status pill sits beside the name when there's room and drops under it
+                  when there isn't, so it never squeezes the name or pokes out of the card. */}
+              <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2.5">
+                <div className="min-w-0">
                   <h3 className="text-lg font-bold leading-tight">{loc.name}</h3>
                   <p className="text-sm text-fg-muted">{loc.short}</p>
                 </div>
-                <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${pill.cls}`}>
+                <span className={`max-w-full rounded-2xl px-2.5 py-1 text-xs font-medium ring-1 ${pill.cls}`}>
                   {pill.text}
                 </span>
               </div>
 
               <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
                 <dt className="text-fg-faint">{s.monFri}</dt>
-                <dd>{fmtRanges(loc.weekday, s.closed)}</dd>
+                <dd>
+                  <Ranges text={fmtRanges(loc.weekday, s.closed)} />
+                </dd>
                 <dt className="text-fg-faint">{s.satSun}</dt>
-                <dd>{fmtRanges(loc.weekend, s.closed)}</dd>
+                <dd>
+                  <Ranges text={fmtRanges(loc.weekend, s.closed)} />
+                </dd>
               </dl>
 
               <p className="mt-3 text-sm text-fg-muted">{loc.address.join(", ")}</p>
