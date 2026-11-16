@@ -18,6 +18,7 @@ const en = {
     source: "Source code",
     privacy: "Privacy",
     terms: "Terms",
+    flyer: "Printable flyer",
     about: "About",
   },
 
@@ -424,6 +425,7 @@ const es: Dict = {
     source: "Código fuente",
     privacy: "Privacidad",
     terms: "Términos",
+    flyer: "Volante para imprimir",
     about: "Acerca de",
   },
 

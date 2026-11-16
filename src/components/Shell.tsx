@@ -119,6 +119,11 @@ export async function Shell({ children }: { children: React.ReactNode }) {
                 {s.footer.terms}
               </Link>
             </li>
+            <li>
+              <Link className="underline decoration-fg-faint underline-offset-4 hover:text-fg" href="/flyer">
+                {s.footer.flyer}
+              </Link>
+            </li>
           </ul>
         </div>
       </footer>
