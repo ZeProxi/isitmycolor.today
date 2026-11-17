@@ -430,7 +430,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
               ))}
             </select>
           </Line>
-          <Line label={st.official} hint={st.officialHelp}>
+          <Line label={st.official} tip={st.officialHelp}>
             <label className="relative inline-flex h-6 w-10 shrink-0 cursor-pointer items-center">
               <input
                 type="checkbox"
@@ -888,14 +888,32 @@ function Group({ title, action, children }: { title: string; action?: React.Reac
   );
 }
 
-/** One setting: what it is on the left, its value or control on the right. */
-function Line({ label, hint, value, dim, children }: { label: string; hint?: string; value?: string; dim?: boolean; children?: React.ReactNode }) {
+/**
+ * One setting: what it is on the left, its value or control on the right.
+ * `hint` is a short line always shown under the label. `tip` is a longer explanation: on wider screens it
+ * sits behind a "?" beside the label (shown on hover or keyboard focus); on phones, where there is no
+ * hover, it is shown under the label instead.
+ */
+function Line({ label, hint, tip, value, dim, children }: { label: string; hint?: string; tip?: string; value?: string; dim?: boolean; children?: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4 px-4 py-3">
       <span className="min-w-0">
-        <span className="block text-sm font-semibold">{label}</span>
+        <span className="flex items-center gap-1.5 text-sm font-semibold">
+          {label}
+          {tip && (
+            <span className="group relative hidden sm:inline-flex">
+              <button type="button" aria-label={tip} className="flex h-4 w-4 items-center justify-center rounded-full border border-fg-faint text-[10px] font-bold leading-none text-fg-muted hover:border-fg hover:text-fg">
+                ?
+              </button>
+              <span role="tooltip" className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-64 -translate-x-1/2 rounded-md border border-line-strong bg-ink px-3 py-2 text-xs font-normal leading-relaxed text-fg group-focus-within:block group-hover:block">
+                {tip}
+              </span>
+            </span>
+          )}
+        </span>
         {value !== undefined && <span className={`block break-all text-sm ${dim ? "text-fg-faint" : "text-fg-muted"}`}>{value}</span>}
         {hint && <span className="block text-xs text-fg-muted">{hint}</span>}
+        {tip && <span className="block text-xs text-fg-muted sm:hidden">{tip}</span>}
       </span>
       <span className="shrink-0 text-xs">{children}</span>
     </div>
