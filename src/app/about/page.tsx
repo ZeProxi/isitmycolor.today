@@ -30,48 +30,76 @@ async function AboutContent() {
       <h1 className="text-4xl font-bold sm:text-5xl">{s.title}</h1>
 
       {why && (
-      <section className="panel rounded-lg p-6 sm:p-8">
-        <h2 className="text-2xl font-bold">{why.title[lang]}</h2>
-        <p className="mt-3 max-w-prose text-fg-muted">{why.intro[lang]}</p>
+        <section className="panel rounded-lg p-6 sm:p-8">
+          <h2 className="text-2xl font-bold">{why.title[lang]}</h2>
+          {/* written in paragraphs: blank lines in the text are kept */}
+          <p className="mt-3 max-w-prose whitespace-pre-line text-fg-muted">{why.intro[lang]}</p>
+        </section>
+      )}
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          {why.people.map((p) => (
-            <figure key={p.photo} className="flex flex-col gap-3 rounded-md bg-black/20 p-3 ring-1 ring-white/10 sm:flex-row sm:gap-4">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={p.photo}
-                alt={p.name[lang]}
-                className="h-60 w-full shrink-0 rounded-md object-cover object-top sm:h-[140px] sm:w-[112px]"
-              />
-              <figcaption className="min-w-0 text-sm">
-                <p className="text-base font-bold leading-tight">{p.name[lang]}</p>
-                <p className="text-fg-muted">{p.relation[lang]}</p>
-                <p className="mt-0.5 text-xs text-fg-faint">{p.dates[lang]}</p>
-                <p className="mt-2 leading-relaxed text-fg-muted">{p.body[lang]}</p>
-              </figcaption>
-            </figure>
-          ))}
-        </div>
-
-        <div className="mt-6 rounded-md border border-white/15 bg-white/5 p-5">
-          <p className="text-lg font-bold">{w.notAloneTitle}</p>
-          <p className="mt-1 max-w-prose text-sm text-fg-muted">{w.notAlone}</p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <a href="tel:988" className="btn-primary text-sm">
-              {w.call988}
-            </a>
-            <Link href="/resources" className="btn-ghost text-sm">
-              {w.moreHelp}
-            </Link>
+      {why && why.people.length > 0 && (
+        <section className="panel rounded-lg p-6 sm:p-8">
+          {/* The people this is for, set apart from the practical reason above. */}
+          <div className="flex items-center gap-3">
+            <Candle className="h-7 w-7 shrink-0 text-accent" />
+            <h2 className="text-2xl font-bold">{why.memorial?.title?.[lang] ?? w.memTitle}</h2>
           </div>
-        </div>
-      </section>
+          <p className="mt-3 max-w-prose text-fg-muted">{why.memorial?.intro?.[lang] ?? w.memIntro}</p>
+
+          <div className="mt-6 grid gap-5 sm:grid-cols-2">
+            {why.people.map((p) => {
+              const years = p.dates[lang].match(/\d{4}/g);
+              return (
+                <figure key={p.photo} className="flex flex-col overflow-hidden rounded-md border border-line-strong bg-black/25">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={p.photo} alt={p.name[lang]} className="aspect-[4/5] w-full object-cover object-top" />
+                  <figcaption className="border-t-2 border-accent p-5 text-center">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-fg-faint">{w.inMemory}</p>
+                    <p className="display mt-1 text-4xl font-bold leading-none">{p.name[lang]}</p>
+                    <p className="mt-1.5 text-sm text-fg-muted">{p.relation[lang]}</p>
+                    {years && years.length >= 2 && (
+                      <p className="display mt-3 text-2xl font-semibold tracking-wide text-accent">
+                        {years[0]} <span className="text-fg-faint">–</span> {years[years.length - 1]}
+                      </p>
+                    )}
+                    <p className="mt-0.5 text-xs text-fg-faint">{p.dates[lang]}</p>
+                    <p className="mt-4 text-left text-sm leading-relaxed text-fg-muted">{p.body[lang]}</p>
+                  </figcaption>
+                </figure>
+              );
+            })}
+          </div>
+
+          <div className="mt-6 rounded-md border border-white/15 bg-white/5 p-5">
+            <p className="text-lg font-bold">{w.notAloneTitle}</p>
+            <p className="mt-1 max-w-prose text-sm text-fg-muted">{w.notAlone}</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <a href="tel:988" className="btn-primary text-sm">
+                {w.call988}
+              </a>
+              <Link href="/resources" className="btn-ghost text-sm">
+                {w.moreHelp}
+              </Link>
+            </div>
+          </div>
+        </section>
       )}
 
       <section className="panel rounded-lg p-6 sm:p-8">
         <h2 className="text-2xl font-bold">{s.how}</h2>
         <ol className="mt-4 max-w-prose space-y-3 text-sm leading-relaxed text-fg-muted">
           {s.steps.map(([lead, body]) => (
+            <li key={lead}>
+              <strong className="text-fg">{lead}</strong> {body}
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="panel rounded-lg p-6 sm:p-8">
+        <h2 className="text-2xl font-bold">{s.wrong}</h2>
+        <ol className="mt-4 max-w-prose space-y-3 text-sm leading-relaxed text-fg-muted">
+          {s.wrongSteps.map(([lead, body]) => (
             <li key={lead}>
               <strong className="text-fg">{lead}</strong> {body}
             </li>
@@ -108,5 +136,17 @@ async function AboutContent() {
         </a>
       </section>
     </div>
+  );
+}
+
+/** A small lit candle, for the memorial heading. */
+function Candle({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 2.5c1.6 1.9 2.4 3.3 2.4 4.5a2.4 2.4 0 0 1-4.8 0c0-1.2.8-2.6 2.4-4.5z" fill="currentColor" stroke="none" />
+      <path d="M12 9.5v2" />
+      <rect x="8.5" y="11.5" width="7" height="9" rx="1" />
+      <path d="M6.5 21h11" />
+    </svg>
   );
 }

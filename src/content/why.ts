@@ -23,6 +23,8 @@ export type WhySection = {
   title: Text;
   intro: Text;
   people: Person[];
+  /** Optional heading and dedication for the section the people appear in. Defaults come from the site's own wording. */
+  memorial?: { title?: Text; intro?: Text };
 };
 
 export const WHY: WhySection | null = null;

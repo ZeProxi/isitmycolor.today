@@ -18,7 +18,8 @@ page or calling the hotline at (385) 268-5002.
   agreement. Settings: text/email/this-device channels (add, change or remove any, keeping at least one),
   only on your color days or every day, a link to the official page as captured that morning, an earliest
   time (1 am to 12 pm Mountain Time, default 6 am), and an optional date after which the alert and all its
-  records are deleted automatically. One alert per day max. Adding a number or email that already has its
+  records are deleted automatically. One alert per day, with two rare exceptions (a "couldn't read the page"
+  notice followed by the real alert, and a correction when a color is added late). Adding a number or email that already has its
   own alert merges the two once its code is entered.
 - **Day pages** – `/day/YYYY-MM-DD` shows an **official screenshot** (a headless-Chrome PNG taken by the
   `lambda/screenshot` function and stored in a private S3 bucket) plus a frozen copy of the saved HTML.

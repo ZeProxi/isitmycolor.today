@@ -519,7 +519,10 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
             <div className="mt-5 grid gap-2" role="radiogroup" aria-label={c.chooseTitle}>
               {(["sms", "email", "both"] as const).map((k) => {
                 const on = want === k;
-                const off = smsPending && k !== "email";
+                // While texting awaits approval, "Both" can't be completed, but "Text" can still be opened: its
+                // screen shows the full opt-in wording (with the send button off), which reviewers need to see.
+                const off = smsPending && k === "both";
+                const soon = smsPending && k !== "email";
                 return (
                   <button
                     key={k}
@@ -536,7 +539,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
                       <span className="block font-semibold">{k === "sms" ? c.text : k === "email" ? c.email : c.both}</span>
                       <span className={`block text-xs ${on ? "text-ink/70" : "text-fg-muted"}`}>{k === "sms" ? c.textHelp : k === "email" ? c.emailHelp : c.bothHelp}</span>
                     </span>
-                    {off && <span className="shrink-0 text-xs font-medium text-fg-muted">{c.soon}</span>}
+                    {soon && <span className={`shrink-0 text-xs font-medium ${on ? "text-ink/70" : "text-fg-muted"}`}>{c.soon}</span>}
                   </button>
                 );
               })}
@@ -572,6 +575,18 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
               autoFocus
             />
             <p className="mt-2 text-xs text-fg-faint">{s.notify.usNumbers}</p>
+            {/* The consent a person gives by continuing, stated where they give it. */}
+            <p className="mt-4 text-xs leading-relaxed text-fg-muted">
+              {c.smsConsent} {c.smsConsentLinks}{" "}
+              <a className="link" href="/privacy" target="_blank" rel="noreferrer">
+                {s.footer.privacy}
+              </a>{" "}
+              {c.and}{" "}
+              <a className="link" href="/terms" target="_blank" rel="noreferrer">
+                {s.footer.terms}
+              </a>
+              .
+            </p>
             {statusLine}
             <button type="submit" disabled={smsPending || busy || phone.replace(/\D/g, "").length < 10} className="btn-primary mt-6 w-full">
               {busy ? s.auth.sending : s.auth.sendCode}
