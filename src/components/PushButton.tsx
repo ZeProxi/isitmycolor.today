@@ -37,6 +37,13 @@ export function PushButton({ className = "rounded-md bg-white/5 px-3 py-2.5 ring
     })().catch(() => setState("unsupported"));
   }, []);
 
+  // "Notifications are on for this device." is a result, not a label: it goes after a few seconds.
+  useEffect(() => {
+    if (!msg) return;
+    const id = setTimeout(() => setMsg(""), msg === s.push.failed ? 7000 : 3500);
+    return () => clearTimeout(id);
+  }, [msg, s.push.failed]);
+
   async function enable() {
     setState("busy");
     try {

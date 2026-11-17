@@ -1,7 +1,7 @@
 import { currentAccount } from "@/lib/auth";
 import { emailOf, getSubscriber, recordTestSend, setSmsStopped, smsOf } from "@/lib/dynamo";
 import { fetchColors } from "@/lib/scrape";
-import { buildMessage, buildEmailHtml, forEmail } from "@/lib/notify";
+import { buildMessage, buildEmailHtml, buildPushNote, forEmail } from "@/lib/notify";
 import { sendSms, isOptedOut } from "@/lib/sms";
 import { sendEmail } from "@/lib/email";
 import { sendPush } from "@/lib/push";
@@ -73,8 +73,7 @@ export async function POST() {
 
   let push: "sent" | "dry-run" | "none" | "failed" = "none";
   if (sub.push?.length) {
-    const lang = isLang(sub.lang) ? sub.lang : "en";
-    const pr = await sendPush(phone, sub.push, { title: t(lang).emailSubject[matched.length ? "match" : "noMatch"], body: message, url: "/", tag: "test" });
+    const pr = await sendPush(phone, sub.push, { ...buildPushNote(snapshot, matched, sub), url: "/", tag: "test" });
     push = pr.dryRun ? "dry-run" : pr.sent > 0 ? "sent" : "failed";
   }
 

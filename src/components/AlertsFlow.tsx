@@ -81,12 +81,15 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
       .catch(() => {});
   }, []);
 
-  // A confirmation ("Saved.") clears itself after a few seconds; an error stays until it's tapped or the next action.
+  // Messages don't linger: a confirmation clears itself after a few seconds, and so does an error on the
+  // settings screen, where it floats over the page. (During sign-up an error sits under the field it is
+  // about, and stays until the person tries again.)
   useEffect(() => {
-    if (status.kind !== "ok") return;
-    const id = setTimeout(() => setStatus((cur) => (cur === status ? { kind: "idle" } : cur)), 3500);
+    const ms = status.kind === "ok" ? 3500 : status.kind === "err" && step === "done" ? 7000 : 0;
+    if (!ms) return;
+    const id = setTimeout(() => setStatus((cur) => (cur === status ? { kind: "idle" } : cur)), ms);
     return () => clearTimeout(id);
-  }, [status]);
+  }, [status, step]);
 
   // Auto-verify as soon as 6 digits are in.
   useEffect(() => {
@@ -473,7 +476,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
         </div>
 
         {/* Settings save as you change them; say so wherever the person is on the page. */}
-        {status.msg && (
+        {status.msg && status.kind !== "busy" && (
           <button
             type="button"
             role="status"

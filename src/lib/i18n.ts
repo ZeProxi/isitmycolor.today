@@ -525,6 +525,13 @@ const en = {
     unavailable: "Device notifications aren't set up on this server.",
     denied: "Notifications are blocked for this site in your browser settings.",
     testSent: "Sent as a notification to this device.",
+    note: {
+      matchTitle: (colors: string) => `Your color (${colors}) has been called today`,
+      matchBody: "Go to your nearest location before it closes and provide your sample.",
+      clearTitle: "Not your color today",
+      clearBody: "Nothing for you to do today.",
+      noneBody: "No colors are listed today.",
+    },
   },
   alertLog: {
     title: "Alert history",
@@ -1078,6 +1085,13 @@ const es: Dict = {
     unavailable: "Las notificaciones del dispositivo no están configuradas en este servidor.",
     denied: "Las notificaciones están bloqueadas para este sitio en la configuración del navegador.",
     testSent: "Enviado como notificación a este dispositivo.",
+    note: {
+      matchTitle: (colors: string) => `Hoy llamaron tu color (${colors})`,
+      matchBody: "Ve a tu centro más cercano antes de que cierre y entrega tu muestra.",
+      clearTitle: "Hoy no es tu color",
+      clearBody: "Hoy no tienes que hacer nada.",
+      noneBody: "Hoy no hay colores publicados.",
+    },
   },
   alertLog: {
     title: "Historial de alertas",

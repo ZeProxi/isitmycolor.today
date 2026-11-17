@@ -13,7 +13,9 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(data.title, {
       body: data.body,
       icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
+      // the small status-bar mark: Android paints it from transparency alone, so a full-color square
+      // here shows up as a solid block. This one is the logo's outline on a transparent background.
+      badge: "/icons/badge-96.png",
       data: { url: data.url },
       tag: data.tag || "daily",
       renotify: true,

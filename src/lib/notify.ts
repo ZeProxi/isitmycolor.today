@@ -71,6 +71,26 @@ export function buildMessage(snapshot: ColorsSnapshot, matched: string[], sub: W
   return msg;
 }
 
+/**
+ * What a device notification says: a short title and one line, nothing a lock
+ * screen has to truncate. No list of the other colors and no "Reply STOP":
+ * that belongs to texts, and a notification is turned off on the device.
+ */
+export function buildPushNote(snapshot: ColorsSnapshot, matched: string[], sub: Who): { title: string; body: string } {
+  const l = langOf(sub);
+  const n = t(l).push.note;
+  if (matched.length) {
+    const names = matched
+      .map((k) => {
+        const c = colorInfo(k, snapshot.colors.find((x) => x.key === k));
+        return l === "es" && c.spanish ? c.spanish : c.english;
+      })
+      .join(", ");
+    return { title: n.matchTitle(names), body: n.matchBody };
+  }
+  return { title: n.clearTitle, body: snapshot.colors.length ? n.clearBody : n.noneBody };
+}
+
 /** The alert sentence without the text-message-only "Reply STOP" ending, for the plain-text part of an email. */
 export function forEmail(message: string): string {
   return message.replace(/\s*(Reply STOP to opt out|Responde STOP para darte de baja)\.\s*$/, "");
@@ -291,8 +311,7 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
       }
       let push: string | undefined;
       if (sub.push?.length) {
-        const title = t(langOf(sub)).emailSubject[matched.length ? "match" : "noMatch"];
-        const pr = await sendPush(sub.phone, sub.push, { title, body: message, url: dayPageUrl(snapshot) ?? "/", tag: `day-${snapshot.date}` });
+        const pr = await sendPush(sub.phone, sub.push, { ...buildPushNote(snapshot, matched, sub), url: dayPageUrl(snapshot) ?? "/", tag: `day-${snapshot.date}` });
         push = pr.dryRun ? "dry-run" : `${pr.sent}/${pr.sent + pr.failed}`;
       }
       const st = (v?: string): ChannelStatus | undefined =>
