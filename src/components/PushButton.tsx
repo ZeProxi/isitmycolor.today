@@ -73,7 +73,7 @@ export function PushButton() {
   if (state === "checking") return null;
 
   return (
-    <div className="rounded-2xl bg-white/5 px-3 py-2.5 ring-1 ring-white/10">
+    <div className="rounded-md bg-white/5 px-3 py-2.5 ring-1 ring-white/10">
       <div className="flex items-center justify-between gap-3">
         <span>
           <span className="block text-sm font-semibold">{s.push.title}</span>

@@ -21,14 +21,14 @@ export default async function FlyerPage() {
           .flyer { box-shadow: none; }
         }
       `}</style>
-      <div className="no-print mb-6 flex items-center justify-between rounded-2xl bg-black/5 px-4 py-3 text-sm">
+      <div className="no-print mb-6 flex items-center justify-between rounded-md bg-black/5 px-4 py-3 text-sm">
         <span>Print this page (Ctrl+P / Cmd+P). It&apos;s sized for a letter sheet.</span>
       </div>
 
       <div className="flex items-center gap-4">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brand/mark.svg" alt="" width={72} height={72} className="h-[72px] w-[72px] rounded-2xl" />
-        <h1 className="text-5xl font-extrabold leading-none tracking-tight">Is it my color today?</h1>
+        <img src="/brand/logo.webp" alt="" width={119} height={72} className="h-[72px] w-[119px]" />
+        <h1 className="text-5xl font-bold leading-none tracking-tight">Is it my color today?</h1>
       </div>
       <p className="mt-3 text-2xl font-semibold text-black/70">¿Es mi color hoy?</p>
 
@@ -50,13 +50,13 @@ export default async function FlyerPage() {
           </ul>
         </div>
         <div className="text-center">
-          <div className="mx-auto w-[220px] rounded-xl border-2 border-black p-2" dangerouslySetInnerHTML={{ __html: qr }} />
+          <div className="mx-auto w-[220px] rounded-md border-2 border-black p-2" dangerouslySetInnerHTML={{ __html: qr }} />
           <p className="mt-2 text-sm font-semibold">Scan to sign up</p>
           <p className="text-sm text-black/60">Escanea para registrarte</p>
         </div>
       </div>
 
-      <p className="mt-8 display text-3xl font-bold tracking-tight">isitmycolor.today</p>
+      <p className="mt-8 text-3xl font-bold tracking-tight">isitmycolor.today</p>
 
       <div className="mt-8 border-t-2 border-black pt-4 text-sm leading-snug text-black/70">
         <p>

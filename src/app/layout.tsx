@@ -1,16 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Bricolage_Grotesque, Manrope } from "next/font/google";
+import { Barlow_Condensed, IBM_Plex_Sans } from "next/font/google";
 import { Suspense } from "react";
 import "./globals.css";
-import { Ambient, AmbientLayer } from "@/components/Ambient";
 import { Shell } from "@/components/Shell";
 
-const display = Bricolage_Grotesque({
-  variable: "--font-display",
-  subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
-});
-const body = Manrope({ variable: "--font-body", subsets: ["latin"], weight: ["400", "500", "600", "700"] });
+const display = Barlow_Condensed({ variable: "--font-display", subsets: ["latin"], weight: ["600", "700"] });
+const body = IBM_Plex_Sans({ variable: "--font-body", subsets: ["latin"], weight: ["400", "500", "600", "700"] });
 
 const SITE = "https://isitmycolor.today";
 const TITLE = "Is it my color today?";
@@ -35,19 +30,16 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
   applicationName: "isitmycolor.today",
   manifest: "/manifest.webmanifest",
-  icons: { apple: "/icons/apple-touch-icon.png" },
+  icons: { icon: "/icon.png", apple: "/icons/apple-touch-icon.png" },
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "My color" },
 };
 
-export const viewport: Viewport = { themeColor: "#070b16", viewportFit: "cover" };
+export const viewport: Viewport = { themeColor: "#131313", viewportFit: "cover" };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${display.variable} ${body.variable} h-full`}>
       <body className="min-h-full flex flex-col">
-        <Suspense fallback={<AmbientLayer hexes={["#3b5bdb", "#5f3dc4"]} />}>
-          <Ambient />
-        </Suspense>
         <Suspense fallback={null}>
           <Shell>{children}</Shell>
         </Suspense>

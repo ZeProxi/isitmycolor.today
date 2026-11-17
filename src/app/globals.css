@@ -3,18 +3,16 @@
 /* ---------- tokens ---------- */
 :root {
   color-scheme: dark;
-  --ink: #070b16;          /* page base */
-  --ink-2: #0d1326;        /* raised surfaces under glass */
-  --fg: #eef2ff;
-  --fg-muted: #b4bdd6;   /* secondary text: readable over the color blooms */
-  --fg-faint: #8d97b4;   /* hints and labels: still quieter, never invisible */
-  --line: rgba(255, 255, 255, 0.1);
-  --line-strong: rgba(255, 255, 255, 0.18);
-  --glass: rgba(255, 255, 255, 0.055);
-  --glass-strong: rgba(255, 255, 255, 0.09);
-  --accent: #8ab4ff;       /* link / focus */
-  --danger: #ff7a90;
-  --ok: #6ee7b7;
+  --ink: #131313;          /* page; matches the logo clip's background */
+  --ink-2: #1b1b1a;        /* panels */
+  --fg: #f1f1ee;
+  --fg-muted: #adada7;     /* secondary text */
+  --fg-faint: #85857f;     /* hints and labels */
+  --line: #2d2d2b;
+  --line-strong: #474743;
+  --accent: #edb058;       /* the logo's sunrise amber: primary actions, current page, today, focus */
+  --danger: #ff7b72;
+  --ok: #63c78b;
 }
 
 @theme inline {
@@ -36,123 +34,58 @@ html {
   background: var(--ink);
 }
 
-/* On phones the tab bar floats over the bottom edge; keep scrolled-into-view
+/* On phones the tab bar is fixed to the bottom edge; keep scrolled-into-view
    fields and buttons (e.g. after keyboard focus) above it. */
 @media (max-width: 767px) {
   html {
-    scroll-padding-bottom: 6.5rem;
+    scroll-padding-bottom: 5.5rem;
   }
 }
 
 body {
-  /* no background here: the fixed ambient layer (z -10) must sit between the canvas and the content */
+  background: var(--ink);
   color: var(--fg);
   font-family: var(--font-body), system-ui, sans-serif;
-  font-feature-settings: "ss01", "cv11";
   -webkit-font-smoothing: antialiased;
 }
 
-h1, h2, h3, .display {
+/* card-sized h3s stay in the body face: the condensed one gets cramped that small */
+h1, h2, .display {
   font-family: var(--font-display), var(--font-body), system-ui, sans-serif;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.005em;
 }
 
 ::selection {
-  background: rgba(138, 180, 255, 0.35);
+  background: #edb058;
+  color: #131313;
 }
 
 :focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 3px;
-  border-radius: 6px;
+  outline-offset: 2px;
 }
 
 @layer components {
-/* ---------- glass ---------- */
-.glass {
-  background: var(--glass);
+/* ---------- panels ---------- */
+.panel {
+  background: var(--ink-2);
   border: 1px solid var(--line);
-  backdrop-filter: blur(22px) saturate(140%);
-  -webkit-backdrop-filter: blur(22px) saturate(140%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 20px 50px -30px rgba(0, 0, 0, 0.8);
-}
-.glass-strong {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.05)), rgba(7, 11, 22, 0.55);
-  border-color: var(--line-strong);
-}
-
-/* a glossy sheen that sweeps across the top-left of a tile */
-.gloss::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background:
-    linear-gradient(118deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.12) 28%, rgba(255, 255, 255, 0) 46%),
-    linear-gradient(0deg, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0) 45%);
-}
-.gloss::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), inset 0 -1px 0 rgba(0, 0, 0, 0.25);
-}
-
-/* ---------- ambient color blooms ---------- */
-.bloom {
-  position: absolute;
-  border-radius: 9999px;
-  filter: blur(90px);
-  opacity: 0.55;
-  will-change: transform;
-  animation: drift 26s ease-in-out infinite alternate;
-}
-.bloom:nth-child(2) { animation-duration: 34s; animation-delay: -12s; }
-.bloom:nth-child(3) { animation-duration: 40s; animation-delay: -20s; }
-
-@keyframes drift {
-  from { transform: translate3d(0, 0, 0) scale(1); }
-  to   { transform: translate3d(6vw, -4vh, 0) scale(1.12); }
-}
-
-/* ---------- one page-load moment: tiles bloom in ---------- */
-@keyframes tile-in {
-  from { opacity: 0; transform: translateY(14px) scale(0.97); }
-  to   { opacity: 1; transform: none; }
-}
-.tile-in {
-  animation: tile-in 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
-}
-.tile-in:nth-child(2) { animation-delay: 90ms; }
-.tile-in:nth-child(3) { animation-delay: 180ms; }
-.tile-in:nth-child(4) { animation-delay: 270ms; }
-
-@media (prefers-reduced-motion: reduce) {
-  .bloom, .tile-in { animation: none !important; }
-  * { transition-duration: 0.01ms !important; }
 }
 
 /* ---------- form controls ---------- */
 .field {
   width: 100%;
-  border-radius: 14px;
-  background: rgba(0, 0, 0, 0.28);
-  border: 1px solid var(--line);
-  padding: 0.75rem 0.95rem;
+  border-radius: 6px;
+  background: #0b0b0b;
+  border: 1px solid var(--line-strong);
+  padding: 0.7rem 0.85rem;
   color: var(--fg);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
-  transition: border-color 0.15s, box-shadow 0.15s;
 }
 .field::placeholder { color: var(--fg-faint); }
 .field:focus {
-  outline: none;
-  border-color: rgba(138, 180, 255, 0.6);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 4px rgba(138, 180, 255, 0.15);
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+  border-color: var(--accent);
 }
 
 .btn-primary {
@@ -160,57 +93,30 @@ h1, h2, h3, .display {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border-radius: 9999px;
-  padding: 0.7rem 1.25rem;
+  border-radius: 6px;
+  padding: 0.65rem 1.1rem;
   font-weight: 600;
-  color: #0a0f1e;
-  background: linear-gradient(180deg, #ffffff 0%, #dfe7ff 100%);
-  box-shadow: inset 0 1px 0 #fff, 0 10px 30px -12px rgba(255, 255, 255, 0.5);
-  transition: transform 0.12s, box-shadow 0.12s;
+  color: #131313;
+  background: var(--accent);
+  border: 1px solid var(--accent);
 }
-.btn-primary:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 #fff, 0 14px 34px -12px rgba(255, 255, 255, 0.6); }
-.btn-primary:active { transform: translateY(0); }
-.btn-primary:disabled { opacity: 0.5; transform: none; }
+.btn-primary:hover { background: #f5c173; border-color: #f5c173; }
+.btn-primary:disabled { opacity: 0.45; }
 
 .btn-ghost {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border-radius: 9999px;
-  padding: 0.7rem 1.1rem;
+  border-radius: 6px;
+  padding: 0.65rem 1.1rem;
   font-weight: 500;
   color: var(--fg);
-  background: var(--glass);
-  border: 1px solid var(--line);
-  transition: background 0.12s, border-color 0.12s;
+  border: 1px solid var(--line-strong);
 }
-.btn-ghost:hover { background: var(--glass-strong); border-color: var(--line-strong); }
-.btn-ghost:disabled { opacity: 0.5; }
+.btn-ghost:hover { background: rgba(255, 255, 255, 0.06); border-color: var(--fg-faint); }
+.btn-ghost:disabled { opacity: 0.45; }
 
-}
-
-/* phone tab bar: near-solid so it reads over any bloom, with a fade above it */
-@layer components {
-  .tabbar {
-    background: rgba(7, 11, 22, 0.94);
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.08),
-      0 12px 40px -12px rgba(0, 0, 0, 0.9);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-  }
-  .tabbar-fade {
-    background: linear-gradient(to top, rgba(7, 11, 22, 0.85), rgba(7, 11, 22, 0));
-  }
-}
-
-/* hide scrollbars on horizontal snap rows */
-.no-scrollbar::-webkit-scrollbar { display: none; }
-.no-scrollbar { scrollbar-width: none; }
-
-@layer components {
 .link {
   color: var(--fg-muted);
   text-decoration: underline;
@@ -220,3 +126,34 @@ h1, h2, h3, .display {
 .link:hover { color: var(--fg); }
 .link:disabled { opacity: 0.5; }
 }
+
+/* ---------- landing page load-in ----------
+   Runs once when the content arrives. Each element sets --d (its delay in ms)
+   or --i (its position in a row) inline; the hidden start state lives only in
+   the keyframes, so with animations off everything is simply visible. */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
+.rise { animation: rise 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both; animation-delay: calc(var(--d, 0) * 1ms); }
+
+/* a color tile: the empty tile lands, the color is rolled on from the left, then the name appears */
+@keyframes chip-in {
+  from { opacity: 0; transform: translateY(18px) rotate(-1.5deg); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes paint {
+  from { clip-path: inset(0 100% 0 0); }
+  to   { clip-path: inset(0 0 0 0); }
+}
+.chip-in { animation: chip-in 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both; animation-delay: calc(120ms + var(--i, 0) * 110ms); }
+.chip-in .paint { animation: paint 0.6s cubic-bezier(0.65, 0, 0.2, 1) both; animation-delay: calc(330ms + var(--i, 0) * 110ms); }
+.chip-in .chip-label { animation: rise 0.35s ease-out both; animation-delay: calc(620ms + var(--i, 0) * 110ms); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; animation: none !important; }
+}
+
+/* hide scrollbars on horizontal snap rows */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }

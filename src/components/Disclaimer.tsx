@@ -12,7 +12,7 @@ export async function Disclaimer({ compact = false }: { compact?: boolean }) {
     );
   }
   return (
-    <section className="glass rounded-3xl p-6 sm:p-8">
+    <section className="panel rounded-lg p-6 sm:p-8">
       <h2 className="text-2xl font-bold">{s.title}</h2>
       <ul className="mt-4 max-w-prose space-y-3 text-sm leading-relaxed text-fg-muted">
         {s.items.map(([lead, body]) => (

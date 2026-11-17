@@ -34,7 +34,7 @@ async function AnalyticsContent({ searchParams }: { searchParams: PageProps<"/an
   try {
     a = await getAnalytics(today);
   } catch (e) {
-    return <p className="glass mt-8 rounded-2xl px-4 py-3 text-sm text-danger">{e instanceof Error ? e.message : String(e)}</p>;
+    return <p className="panel mt-8 rounded-md px-4 py-3 text-sm text-danger">{e instanceof Error ? e.message : String(e)}</p>;
   }
   const name = (c: { english: string; spanish: string }) => (lang === "es" && c.spanish ? c.spanish : c.english);
   const maxCount = Math.max(1, ...a.colors.map((c) => c.count));
@@ -60,14 +60,14 @@ async function AnalyticsContent({ searchParams }: { searchParams: PageProps<"/an
         <h2 className="text-2xl font-bold">{s.freqTitle}</h2>
         {s.freqHelp && <p className="mt-1 text-sm text-fg-muted">{s.freqHelp}</p>}
         {a.colors.length === 0 ? (
-          <p className="glass mt-4 rounded-2xl px-4 py-3 text-sm text-fg-muted">{s.noData}</p>
+          <p className="panel mt-4 rounded-md px-4 py-3 text-sm text-fg-muted">{s.noData}</p>
         ) : (
-          <div className="glass mt-4 rounded-3xl p-4 sm:p-6">
+          <div className="panel mt-4 rounded-lg p-4 sm:p-6">
             <ol className="space-y-2">
               {a.colors.map((c) => (
                 <li key={c.key} className="grid grid-cols-[110px_1fr_auto] items-center gap-3 text-sm sm:grid-cols-[140px_1fr_auto]">
                   <span className="flex items-center gap-2 truncate">
-                    <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-black/30" style={{ background: c.hex }} />
+                    <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: c.hex }} />
                     <span className="truncate font-medium">{name(c)}</span>
                   </span>
                   <span className="relative h-3 overflow-hidden rounded-r-[4px] bg-white/5">
@@ -92,7 +92,7 @@ async function AnalyticsContent({ searchParams }: { searchParams: PageProps<"/an
         <section>
           <h2 className="text-2xl font-bold">{s.recencyTitle}</h2>
           {s.recencyHelp && <p className="mt-1 text-sm text-fg-muted">{s.recencyHelp}</p>}
-          <div className="glass mt-4 overflow-x-auto rounded-3xl">
+          <div className="panel mt-4 overflow-x-auto rounded-lg">
             <table className="w-full text-sm">
               <thead className="text-left text-xs text-fg-muted">
                 <tr className="border-b border-white/10">
@@ -111,8 +111,8 @@ async function AnalyticsContent({ searchParams }: { searchParams: PageProps<"/an
                   <tr key={c.key}>
                     <td className="px-4 py-2.5">
                       <span className="flex items-center gap-2">
-                        <span className="h-3 w-3 rounded-full ring-1 ring-black/30" style={{ background: c.hex }} />
-                        {name(c)}
+                        <span className="h-3 w-3 rounded-sm" style={{ background: c.hex }} />
+                        <Link className="link" href={`/color/${encodeURIComponent(c.key)}`}>{name(c)}</Link>
                       </span>
                     </td>
                     <td className="px-4 py-2.5 tabular-nums">{c.count}</td>
@@ -135,7 +135,7 @@ async function AnalyticsContent({ searchParams }: { searchParams: PageProps<"/an
         <div>
           <h2 className="text-2xl font-bold">{s.perDayTitle}</h2>
           {s.perDayHelp && <p className="mt-1 text-sm text-fg-muted">{s.perDayHelp}</p>}
-          <div className="glass mt-4 rounded-3xl p-4 sm:p-6">
+          <div className="panel mt-4 rounded-lg p-4 sm:p-6">
             {a.perDayHistogram.filter((n) => n > 0).length === 0 ? (
               <p className="text-sm text-fg-muted">{s.noData}</p>
             ) : (
@@ -160,7 +160,7 @@ async function AnalyticsContent({ searchParams }: { searchParams: PageProps<"/an
         <div>
           <h2 className="text-2xl font-bold">{s.weekdayTitle}</h2>
           {s.weekdayHelp && <p className="mt-1 text-sm text-fg-muted">{s.weekdayHelp}</p>}
-          <div className="glass mt-4 rounded-3xl p-4 sm:p-6">
+          <div className="panel mt-4 rounded-lg p-4 sm:p-6">
             <ol className="space-y-2">
               {a.byWeekday.map((w) => (
                 <li key={w.weekday} className="grid grid-cols-[48px_1fr_auto] items-center gap-3 text-sm">
@@ -189,7 +189,7 @@ async function AnalyticsContent({ searchParams }: { searchParams: PageProps<"/an
           <div>
             <h3 className="text-lg font-bold">{s.repeatTitle}</h3>
             {s.repeatHelp && <p className="mt-1 text-sm text-fg-muted">{s.repeatHelp}</p>}
-            <div className="glass mt-3 rounded-3xl p-4 sm:p-6">
+            <div className="panel mt-3 rounded-lg p-4 sm:p-6">
               {a.repeat ? (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -212,13 +212,13 @@ async function AnalyticsContent({ searchParams }: { searchParams: PageProps<"/an
           <div>
             <h3 className="text-lg font-bold">{s.trendTitle}</h3>
             {s.trendHelp && <p className="mt-1 text-sm text-fg-muted">{s.trendHelp}</p>}
-            <div className="glass mt-3 rounded-3xl p-4 sm:p-6">
+            <div className="panel mt-3 rounded-lg p-4 sm:p-6">
               {a.colors.some((c) => c.recentShare !== null) ? (
                 <ol className="space-y-2 text-sm">
                   {a.colors.map((c) => (
                     <li key={c.key} className="grid grid-cols-[110px_1fr_auto] items-center gap-3">
                       <span className="flex items-center gap-2 truncate">
-                        <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-black/30" style={{ background: c.hex }} />
+                        <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: c.hex }} />
                         <span className="truncate">{name(c)}</span>
                       </span>
                       <span className="relative h-3 overflow-hidden rounded-r-[4px] bg-white/5">
@@ -241,7 +241,7 @@ async function AnalyticsContent({ searchParams }: { searchParams: PageProps<"/an
         <div>
           <h3 className="text-lg font-bold">{s.pairsTitle}</h3>
           {s.pairsHelp && <p className="mt-1 text-sm text-fg-muted">{s.pairsHelp}</p>}
-          <div className="glass mt-3 overflow-x-auto rounded-3xl">
+          <div className="panel mt-3 overflow-x-auto rounded-lg">
             {a.pairs.length === 0 ? (
               <p className="px-4 py-3 text-sm text-fg-muted">{s.needMore(2)}</p>
             ) : (
@@ -261,10 +261,10 @@ async function AnalyticsContent({ searchParams }: { searchParams: PageProps<"/an
                       <tr key={`${pr.a}-${pr.b}`}>
                         <td className="px-4 py-2.5">
                           <span className="flex items-center gap-2">
-                            <span className="h-3 w-3 rounded-full ring-1 ring-black/30" style={{ background: ca?.hex }} />
+                            <span className="h-3 w-3 rounded-sm" style={{ background: ca?.hex }} />
                             {ca ? name(ca) : pr.a}
                             <span className="text-fg-faint">+</span>
-                            <span className="h-3 w-3 rounded-full ring-1 ring-black/30" style={{ background: cb?.hex }} />
+                            <span className="h-3 w-3 rounded-sm" style={{ background: cb?.hex }} />
                             {cb ? name(cb) : pr.b}
                           </span>
                         </td>
@@ -303,7 +303,7 @@ async function AnalyticsContent({ searchParams }: { searchParams: PageProps<"/an
             </span>
           )}
         </div>
-        <div className="glass mt-4 overflow-x-auto rounded-3xl">
+        <div className="panel mt-4 overflow-x-auto rounded-lg">
           <table className="w-full text-sm">
             <thead className="text-left text-xs text-fg-muted">
               <tr className="border-b border-white/10">
@@ -324,8 +324,8 @@ async function AnalyticsContent({ searchParams }: { searchParams: PageProps<"/an
                       {d.colors.map((k) => {
                         const c = a.colors.find((x) => x.key === k);
                         return (
-                          <span key={k} className="flex items-center gap-1.5 rounded-full bg-white/6 py-0.5 pl-1.5 pr-2 text-xs ring-1 ring-white/10">
-                            <span className="h-2.5 w-2.5 rounded-full" style={{ background: c?.hex }} />
+                          <span key={k} className="flex items-center gap-1.5 text-xs">
+                            <span className="h-2.5 w-2.5 rounded-sm" style={{ background: c?.hex }} />
                             {c ? name(c) : k}
                           </span>
                         );
@@ -365,7 +365,7 @@ async function AnalyticsContent({ searchParams }: { searchParams: PageProps<"/an
 
 function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="glass rounded-2xl p-4">
+    <div className="panel rounded-md p-4">
       <p className="text-xs text-fg-muted">{label}</p>
       <p className="mt-1 text-3xl font-bold tabular-nums">{value}</p>
       {sub && <p className="mt-1 text-xs text-fg-faint">{sub}</p>}

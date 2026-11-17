@@ -28,17 +28,17 @@ async function ResourcesContent() {
 
       {/* the two numbers that matter most, up top and big */}
       <div className="grid gap-3 sm:grid-cols-2">
-        <a href="tel:988" className="glass glass-strong flex items-center justify-between rounded-3xl p-5 transition hover:bg-white/10">
+        <a href="tel:988" className="panel flex items-center justify-between rounded-lg p-5 hover:border-fg-faint">
           <span>
             <span className="block text-sm text-fg-muted">{s.crisisLabel}</span>
-            <span className="display block text-4xl font-extrabold">988</span>
+            <span className="block text-4xl font-bold">988</span>
           </span>
           <span className="text-sm text-fg-muted">{s.callOrText}</span>
         </a>
-        <a href="tel:911" className="glass flex items-center justify-between rounded-3xl p-5 transition hover:bg-white/10">
+        <a href="tel:911" className="panel flex items-center justify-between rounded-lg p-5 hover:border-fg-faint">
           <span>
             <span className="block text-sm text-fg-muted">{s.emergencyLabel}</span>
-            <span className="display block text-4xl font-extrabold">911</span>
+            <span className="block text-4xl font-bold">911</span>
           </span>
           <span className="max-w-[12rem] text-right text-sm text-fg-muted">{s.emergencyWhen}</span>
         </a>
@@ -53,7 +53,7 @@ async function ResourcesContent() {
               {s.communitiesTitle}
             </h2>
             <p className="mt-1 text-sm text-fg-muted">{s.communitiesHelp}</p>
-            <ul className="glass mt-4 divide-y divide-white/10 rounded-3xl">
+            <ul className="panel mt-4 divide-y divide-white/10 rounded-lg">
               {COMMUNITIES.map((c) => (
                 <li key={c.name}>
                   <a href={c.href} target="_blank" rel="noreferrer" className="flex items-center gap-3 px-4 py-3 transition hover:bg-white/5">
@@ -76,7 +76,7 @@ async function ResourcesContent() {
           {sec.intro && <p className="mt-1 max-w-prose text-sm text-fg-muted">{sec.intro[lang]}</p>}
           <ul className="mt-4 grid gap-3 md:grid-cols-2">
             {sec.items.map((r) => (
-              <li key={r.name.en} className="glass flex flex-col rounded-3xl p-5">
+              <li key={r.name.en} className="panel flex flex-col rounded-lg p-5">
                 <h3 className="font-bold leading-snug">{r.name[lang]}</h3>
                 <p className="mt-1 text-sm text-fg-muted">{r.blurb[lang]}</p>
                 <div className="mt-3 flex flex-wrap gap-2">

@@ -25,21 +25,23 @@ async function AboutContent() {
   const why = WHY ?? (await loadOwnerWhy());
   return (
     <div className="space-y-8 pt-6 sm:pt-10">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/brand/logo-large.webp" alt="isitmycolor.today" width={720} height={434} className="mx-auto h-auto w-64 sm:w-[360px]" />
       <h1 className="text-4xl font-bold sm:text-5xl">{s.title}</h1>
 
       {why && (
-      <section className="glass glass-strong rounded-3xl p-6 sm:p-8">
+      <section className="panel rounded-lg p-6 sm:p-8">
         <h2 className="text-2xl font-bold">{why.title[lang]}</h2>
         <p className="mt-3 max-w-prose text-fg-muted">{why.intro[lang]}</p>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           {why.people.map((p) => (
-            <figure key={p.photo} className="flex flex-col gap-3 rounded-2xl bg-black/20 p-3 ring-1 ring-white/10 sm:flex-row sm:gap-4">
+            <figure key={p.photo} className="flex flex-col gap-3 rounded-md bg-black/20 p-3 ring-1 ring-white/10 sm:flex-row sm:gap-4">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={p.photo}
                 alt={p.name[lang]}
-                className="h-60 w-full shrink-0 rounded-xl object-cover object-top sm:h-[140px] sm:w-[112px]"
+                className="h-60 w-full shrink-0 rounded-md object-cover object-top sm:h-[140px] sm:w-[112px]"
               />
               <figcaption className="min-w-0 text-sm">
                 <p className="text-base font-bold leading-tight">{p.name[lang]}</p>
@@ -51,7 +53,7 @@ async function AboutContent() {
           ))}
         </div>
 
-        <div className="mt-6 rounded-2xl border border-white/15 bg-white/5 p-5">
+        <div className="mt-6 rounded-md border border-white/15 bg-white/5 p-5">
           <p className="text-lg font-bold">{w.notAloneTitle}</p>
           <p className="mt-1 max-w-prose text-sm text-fg-muted">{w.notAlone}</p>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -66,7 +68,7 @@ async function AboutContent() {
       </section>
       )}
 
-      <section className="glass rounded-3xl p-6 sm:p-8">
+      <section className="panel rounded-lg p-6 sm:p-8">
         <h2 className="text-2xl font-bold">{s.how}</h2>
         <ol className="mt-4 max-w-prose space-y-3 text-sm leading-relaxed text-fg-muted">
           {s.steps.map(([lead, body]) => (
@@ -77,7 +79,7 @@ async function AboutContent() {
         </ol>
       </section>
 
-      <section className="glass rounded-3xl p-6 sm:p-8">
+      <section className="panel rounded-lg p-6 sm:p-8">
         <h2 className="text-2xl font-bold">{dict.faq.title}</h2>
         <div className="mt-3 divide-y divide-white/10">
           {dict.faq.items.map(([q, a]) => (

@@ -37,7 +37,7 @@ async function DayContent({ params }: { params: PageProps<"/day/[date]">["params
     <div className="space-y-5 pt-6 sm:pt-10">
       <Link
         href={`/history?month=${date.slice(0, 7)}`}
-        className="inline-flex items-center gap-2 rounded-full bg-white/8 py-1.5 pl-3 pr-4 text-sm font-medium text-fg ring-1 ring-white/15 transition hover:bg-white/15"
+        className="link inline-flex items-center gap-1.5 text-sm"
       >
         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M15 5l-7 7 7 7" />
@@ -51,12 +51,12 @@ async function DayContent({ params }: { params: PageProps<"/day/[date]">["params
       </div>
 
       {shot ? (
-        <figure className="glass overflow-hidden rounded-3xl bg-white">
+        <figure className="panel overflow-hidden rounded-lg bg-white">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={shot.url} alt={`wasatch.org/colors on ${date}`} className="block w-full" />
           <figcaption className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-xs text-ink/60">
             <span>{shot.capturedAt ? s.day.screenshotCaptured(fmtTime(shot.capturedAt)) : ""}</span>
-            <a className="rounded-full bg-ink px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90" href={shot.downloadUrl}>
+            <a className="rounded bg-ink px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90" href={shot.downloadUrl}>
               {s.day.downloadPng}
             </a>
           </figcaption>
@@ -67,7 +67,7 @@ async function DayContent({ params }: { params: PageProps<"/day/[date]">["params
           {snap.colors.map((c) => {
             const info = colorInfo(c.key, c);
             return (
-              <span key={c.raw} className="gloss relative rounded-xl px-4 py-2 text-lg font-bold" style={{ background: c.siteBackground ?? info.hex, color: info.text }}>
+              <span key={c.raw} className="rounded-md px-4 py-2 text-lg font-bold" style={{ background: c.siteBackground ?? info.hex, color: info.text }}>
                 <span className="relative">{c.raw}</span>
               </span>
             );

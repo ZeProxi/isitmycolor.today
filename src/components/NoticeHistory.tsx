@@ -20,7 +20,7 @@ export function NoticeHistory({ days, lang }: { days: ColorsSnapshot[]; lang: La
       <h2 className="text-2xl font-bold">{s.noticesTitle}</h2>
       <ul className="mt-3 space-y-2">
         {runs.map((r) => (
-          <li key={r.from} className="glass rounded-2xl px-4 py-3">
+          <li key={r.from} className="panel rounded-md px-4 py-3">
             <p className="text-xs text-fg-muted">
               {r.from === r.to ? longDateMountain(r.from, lang) : `${longDateMountain(r.from, lang)} – ${longDateMountain(r.to, lang)}`}
             </p>

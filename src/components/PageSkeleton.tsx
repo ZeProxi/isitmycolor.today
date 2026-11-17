@@ -6,7 +6,7 @@ export function PageSkeleton() {
         <div className="h-10 w-64 rounded bg-white/10 sm:h-12" />
         <div className="mt-4 h-4 w-80 max-w-full rounded bg-white/8" />
       </div>
-      <div className="glass h-64 rounded-3xl" />
+      <div className="panel h-64 rounded-lg" />
     </div>
   );
 }

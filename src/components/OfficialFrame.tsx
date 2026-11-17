@@ -36,7 +36,7 @@ export function OfficialFrame({ url, openLabel, reloadLabel }: { url: string; op
           {reloadLabel}
         </button>
       </div>
-      <div ref={box} className="glass overflow-hidden rounded-3xl bg-white" style={{ height: FRAME_H * scale }}>
+      <div ref={box} className="panel overflow-hidden rounded-lg bg-white" style={{ height: FRAME_H * scale }}>
         <iframe
           key={nonce}
           src={url}

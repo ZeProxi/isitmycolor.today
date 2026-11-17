@@ -38,7 +38,7 @@ export function LangToggle() {
     <div
       role="group"
       aria-label="Language"
-      className={`glass flex rounded-full p-0.5 text-xs font-semibold transition ${pending ? "opacity-60" : ""}`}
+      className={`flex overflow-hidden rounded border border-line-strong text-xs font-semibold ${pending ? "opacity-60" : ""}`}
     >
       {(["en", "es"] as const).map((l) => (
         <button
@@ -46,9 +46,7 @@ export function LangToggle() {
           type="button"
           onClick={() => set(l)}
           aria-pressed={lang === l}
-          className={`rounded-full px-2.5 py-1 uppercase transition ${
-            lang === l ? "bg-white text-ink" : "text-fg-muted hover:text-fg"
-          }`}
+          className={`px-2 py-1 uppercase ${lang === l ? "bg-fg text-ink" : "text-fg-muted hover:text-fg"}`}
         >
           {l}
         </button>

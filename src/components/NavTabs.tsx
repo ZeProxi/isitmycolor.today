@@ -30,7 +30,7 @@ export function NavTabs({ placement }: { placement: "top" | "bottom" }) {
     return (
       <nav
         aria-label="Primary"
-        className="tabbar fixed inset-x-3 bottom-3 z-40 grid rounded-2xl p-1 md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 grid border-t border-line bg-ink px-1 pt-1 md:hidden"
         style={{ gridTemplateColumns: `repeat(${phoneTabs.length}, 1fr)`, paddingBottom: "max(0.25rem, env(safe-area-inset-bottom))" }}
       >
         {phoneTabs.map(({ href, key, icon: Icon }) => {
@@ -40,8 +40,8 @@ export function NavTabs({ placement }: { placement: "top" | "bottom" }) {
               key={href}
               href={href}
               aria-current={on ? "page" : undefined}
-              className={`flex flex-col items-center gap-0.5 rounded-xl py-2 text-[11px] font-semibold transition ${
-                on ? "bg-white text-ink" : "text-fg hover:bg-white/10"
+              className={`flex flex-col items-center gap-0.5 border-t-2 py-2 text-[11px] ${
+                on ? "border-accent font-semibold text-fg" : "border-transparent font-medium text-fg-muted"
               }`}
             >
               <Icon className="h-5 w-5" />
@@ -54,7 +54,7 @@ export function NavTabs({ placement }: { placement: "top" | "bottom" }) {
   }
 
   return (
-    <nav aria-label="Primary" className="glass hidden items-center gap-1 rounded-full p-1 md:flex">
+    <nav aria-label="Primary" className="hidden items-center gap-5 md:flex">
       {tabs.map(({ href, key }) => {
         const on = isActive(href);
         return (
@@ -62,8 +62,8 @@ export function NavTabs({ placement }: { placement: "top" | "bottom" }) {
             key={href}
             href={href}
             aria-current={on ? "page" : undefined}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-              on ? "bg-white text-ink shadow-[inset_0_1px_0_#fff]" : "text-fg-muted hover:bg-white/8 hover:text-fg"
+            className={`py-1 text-sm underline-offset-[6px] ${
+              on ? "font-semibold text-fg underline decoration-accent decoration-2" : "text-fg-muted hover:text-fg"
             }`}
           >
             {s.nav[key]}

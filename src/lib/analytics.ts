@@ -69,7 +69,7 @@ function daysBetween(a: string, b: string): number {
   return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000);
 }
 
-async function loadAllDays(): Promise<DayRecord[]> {
+async function loadAllDays(withHtml: boolean): Promise<DayRecord[]> {
   await ready();
   const out: DayRecord[] = [];
   let ExclusiveStartKey: Record<string, unknown> | undefined;
@@ -79,8 +79,9 @@ async function loadAllDays(): Promise<DayRecord[]> {
         TableName: env.historyTable,
         KeyConditionExpression: "pk = :p",
         ExpressionAttributeValues: { ":p": "DAY" },
-        ExpressionAttributeNames: { "#s": "snapshot", "#h": "rawHtml" },
-        ProjectionExpression: "sk, #s, #h",
+        // the saved page HTML is only needed for the hotline counter; skip it when the caller doesn't want that
+        ExpressionAttributeNames: withHtml ? { "#s": "snapshot", "#h": "rawHtml" } : { "#s": "snapshot" },
+        ProjectionExpression: withHtml ? "sk, #s, #h" : "sk, #s",
         ScanIndexForward: true,
         ExclusiveStartKey,
       }),
@@ -215,6 +216,6 @@ export function computeAnalytics(records: { sk: string; snapshot: ColorsSnapshot
   };
 }
 
-export async function getAnalytics(today: string): Promise<Analytics> {
-  return computeAnalytics(await loadAllDays(), today);
+export async function getAnalytics(today: string, opts: { withHtml?: boolean } = {}): Promise<Analytics> {
+  return computeAnalytics(await loadAllDays(opts.withHtml ?? true), today);
 }

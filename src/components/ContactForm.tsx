@@ -36,11 +36,11 @@ export function ContactForm() {
   }
 
   if (state === "sent") {
-    return <p className="glass rounded-2xl px-4 py-3 text-sm text-ok">{s.contact.sent}</p>;
+    return <p className="panel rounded-md px-4 py-3 text-sm text-ok">{s.contact.sent}</p>;
   }
 
   return (
-    <form onSubmit={submit} className="glass rounded-3xl p-5 sm:p-6">
+    <form onSubmit={submit} className="panel rounded-lg p-5 sm:p-6">
       <h2 className="text-2xl font-bold">{s.contact.title}</h2>
       <p className="mt-1 text-sm text-fg-muted">{s.contact.help}</p>
       <textarea

@@ -42,7 +42,7 @@ export function SavedPageFrame({
   downloadLabel?: string;
 }) {
   return (
-    <figure className="glass overflow-hidden rounded-3xl bg-white">
+    <figure className="panel overflow-hidden rounded-lg bg-white">
       <iframe
         srcDoc={freezeHotlineHtml(html)}
         title="Saved copy of wasatch.org/colors"
@@ -55,7 +55,7 @@ export function SavedPageFrame({
         <figcaption className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-xs text-ink/60">
           <span>{caption ?? ""}</span>
           {downloadHref && (
-            <a className="rounded-full bg-ink px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90" href={downloadHref} download>
+            <a className="rounded bg-ink px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90" href={downloadHref} download>
               {downloadLabel}
             </a>
           )}

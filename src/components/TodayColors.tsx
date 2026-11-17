@@ -20,7 +20,7 @@ export async function TodayColors() {
 
   if ("error" in data) {
     return (
-      <section className="glass rounded-3xl p-6 sm:p-8">
+      <section className="panel rounded-lg p-6 sm:p-8">
         <h1 className="text-2xl font-bold sm:text-3xl">{s.unreachable}</h1>
         <p className="mt-2 max-w-prose text-fg-muted">{data.error}</p>
         <a className="btn-ghost mt-5" href="https://wasatch.org/colors/">
@@ -49,28 +49,22 @@ export async function TodayColors() {
 
   return (
     <section>
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+      <div className="rise flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
         <div>
           <p className="text-sm font-medium text-fg-muted">
             {data.date ? cap(longDateMountain(data.date, lang)) : s.today}
           </p>
-          <h1 className="mt-1 text-4xl font-bold sm:text-5xl">
+          <h1 className="mt-1 text-3xl font-bold sm:text-4xl">
             {matched.length ? s.yoursUp : n === 0 ? s.noColors : n === 1 ? s.oneColor : s.nColors(n)}
           </h1>
           {mine.length > 0 && matched.length === 0 && n > 0 && (
             <p className="mt-2 text-sm text-fg-muted">{s.notYours(mineNames.join(", "))}</p>
           )}
         </div>
-        <p className="flex items-center gap-2 text-xs text-fg-muted">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ok opacity-60" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-ok" />
-          </span>
-          {s.live(fetched)}
-        </p>
+        <p className="text-xs text-fg-muted">{s.live(fetched)}</p>
       </div>
 
-      {stale && <p className="glass mt-4 rounded-2xl px-4 py-3 text-sm text-fg">{s.stale(data.dateText)}</p>}
+      {stale && <p className="panel mt-4 rounded-md px-4 py-3 text-sm text-fg">{s.stale(data.dateText)}</p>}
 
       {n > 0 && (
         <div
@@ -92,57 +86,55 @@ export async function TodayColors() {
             const isMine = mine.includes(c.key);
             const dimmed = matched.length > 0 && !isMine;
             return (
-              <div
+              <Link
                 key={c.raw}
-                className={`gloss tile-in relative flex flex-col justify-end overflow-hidden transition sm:min-h-56 sm:rounded-[28px] sm:p-7 ${
-                  compact ? "min-h-28 rounded-3xl p-4" : "min-h-44 rounded-[28px] p-6"
-                } ${wide ? "col-span-2 sm:col-span-1" : ""} ${dimmed ? "opacity-60 saturate-75" : ""} ${
-                  isMine ? "ring-2 ring-white ring-offset-4 ring-offset-ink" : ""
+                href={`/color/${encodeURIComponent(c.key)}`}
+                style={{ "--i": idx, color: info.text } as React.CSSProperties}
+                className={`chip-in group relative flex flex-col justify-end overflow-hidden rounded-md border border-white/15 bg-ink-2 sm:min-h-48 sm:p-6 ${
+                  compact ? "min-h-28 p-4" : "min-h-40 p-5"
+                } ${wide ? "col-span-2 sm:col-span-1" : ""} ${dimmed ? "opacity-50" : ""} ${
+                  isMine ? "outline outline-[3px] outline-offset-[3px] outline-accent" : ""
                 }`}
-                style={{
-                  background: `linear-gradient(160deg, ${hex} 0%, ${hex} 55%, color-mix(in oklab, ${hex} 70%, black) 100%)`,
-                  color: info.text,
-                  boxShadow: isMine
-                    ? `0 40px 110px -20px ${hex}, 0 0 0 1px rgba(255,255,255,0.3) inset`
-                    : `0 30px 80px -30px ${hex}, 0 0 0 1px rgba(255,255,255,0.12) inset`,
-                }}
               >
+                {/* the color itself, rolled on from the left when the page loads */}
+                <span aria-hidden className="paint absolute inset-0" style={{ background: hex }} />
                 {isMine && (
                   <span
-                    className={`absolute rounded-full bg-white font-bold text-ink shadow sm:right-4 sm:top-4 sm:px-3 sm:py-1 sm:text-xs ${
+                    className={`absolute rounded-sm bg-white font-bold text-ink sm:right-4 sm:top-4 sm:px-3 sm:py-1 sm:text-xs ${
                       compact ? "right-2.5 top-2.5 px-2 py-0.5 text-[11px]" : "right-4 top-4 px-3 py-1 text-xs"
                     }`}
                   >
                     {s.yourColor}
                   </span>
                 )}
-                <span
-                  className={`display relative break-words font-extrabold leading-none ${
-                    primary.length > 9
-                      ? `${compact ? "text-xl" : "text-3xl"} sm:text-4xl`
-                      : primary.length > 6
-                        ? `${compact ? "text-2xl" : "text-4xl"} sm:text-5xl`
-                        : `${compact ? "text-3xl" : "text-5xl"} sm:text-6xl`
-                  }`}
-                  style={{ textShadow: "0 2px 16px rgba(0,0,0,0.18)" }}
-                >
-                  {cap(primary)}
-                </span>
-                {secondary && (
+                <span className="chip-label relative flex flex-col">
                   <span
-                    className={`relative font-semibold opacity-80 sm:mt-2 sm:text-lg ${compact ? "mt-1 text-sm" : "mt-2 text-lg"}`}
+                    className={`display break-words font-bold leading-none ${
+                      primary.length > 9
+                        ? `${compact ? "text-2xl" : "text-4xl"} sm:text-5xl`
+                        : primary.length > 6
+                          ? `${compact ? "text-3xl" : "text-5xl"} sm:text-6xl`
+                          : `${compact ? "text-4xl" : "text-6xl"} sm:text-7xl`
+                    }`}
                   >
-                    {secondary}
+                    {cap(primary)}
                   </span>
-                )}
-              </div>
+                  {secondary && (
+                    <span className={`font-medium opacity-80 sm:mt-2 sm:text-lg ${compact ? "mt-1 text-sm" : "mt-2 text-lg"}`}>{secondary}</span>
+                  )}
+                </span>
+                {/* says "this opens" without needing hover, for phones */}
+                <svg className="absolute bottom-3 right-3 h-5 w-5 opacity-45 group-hover:opacity-100 sm:bottom-5 sm:right-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M7 17L17 7M9 7h8v8" />
+                </svg>
+              </Link>
             );
           })}
         </div>
       )}
 
       {data.announcement && (
-        <div className="glass mt-4 flex gap-3 rounded-2xl px-4 py-3 text-sm">
+        <div className="rise panel mt-4 flex gap-3 rounded-md px-4 py-3 text-sm" style={{ "--d": 500 + n * 110 } as React.CSSProperties}>
           <span aria-hidden className="mt-0.5 text-fg-muted">
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M4 13V9a1 1 0 0 1 1-1h3l7-4v16l-7-4H5a1 1 0 0 1-1-1zM19 9a4 4 0 0 1 0 6" />
@@ -155,7 +147,7 @@ export async function TodayColors() {
         </div>
       )}
 
-      <div className="mt-6 flex flex-wrap items-center gap-3">
+      <div className="rise mt-6 flex flex-wrap items-center gap-3" style={{ "--d": 600 + n * 110 } as React.CSSProperties}>
         {mine.length === 0 ? (
           <Link href="/notify" className="btn-primary">
             {s.ctaText}
@@ -179,8 +171,8 @@ export function TodayColorsSkeleton() {
       <div className="h-4 w-40 rounded bg-white/10" />
       <div className="mt-3 h-11 w-72 rounded bg-white/10" />
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="min-h-44 rounded-[28px] bg-white/8 sm:min-h-56" />
-        <div className="min-h-44 rounded-[28px] bg-white/8 sm:min-h-56" />
+        <div className="min-h-40 rounded-md bg-white/8 sm:min-h-48" />
+        <div className="min-h-40 rounded-md bg-white/8 sm:min-h-48" />
       </div>
     </section>
   );

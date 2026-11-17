@@ -42,7 +42,7 @@ async function HistoryContent({ searchParams }: { searchParams: PageProps<"/hist
         <p className="mt-3 max-w-prose text-fg-muted">{s.intro}</p>
       </div>
       {error && (
-        <p className="glass rounded-2xl px-4 py-3 text-sm text-danger">
+        <p className="panel rounded-md px-4 py-3 text-sm text-danger">
           {s.loadFailed} {error}
         </p>
       )}

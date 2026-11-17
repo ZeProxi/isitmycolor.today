@@ -236,7 +236,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
     </p>
   ) : null;
 
-  if (step === "loading") return <div className="glass mx-auto h-72 max-w-lg animate-pulse rounded-3xl" />;
+  if (step === "loading") return <div className="panel mx-auto h-72 max-w-lg animate-pulse rounded-lg" />;
 
   // ---------- done: the summary card ----------
   if (step === "done") {
@@ -246,9 +246,9 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
     const testing = status.kind === "busy" && status.msg === s.prefs.testSending;
     return (
       <div className="mx-auto max-w-lg">
-        <section className="glass glass-strong rounded-3xl p-6 sm:p-8">
+        <section className="panel rounded-lg p-6 sm:p-8">
           <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-ok/15 text-ok ring-1 ring-ok/30">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-ok text-ink">
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M5 12.5l4.5 4.5L19 7.5" />
               </svg>
@@ -267,7 +267,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
               <span className="flex flex-wrap gap-1.5">
                 {chosen.map((c, i) =>
                   c ? (
-                    <span key={c.key} className="gloss relative rounded-lg px-3 py-1 text-sm font-bold" style={{ background: c.hex, color: c.text }}>
+                    <span key={c.key} className="rounded-lg px-3 py-1 text-sm font-bold" style={{ background: c.hex, color: c.text }}>
                       <span className="relative">{name(c)}</span>
                     </span>
                   ) : (
@@ -294,7 +294,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
                   aria-checked={on}
                   disabled={busy}
                   onClick={() => !on && savePrefs({ ...prefs, mode: m })}
-                  className={`rounded-2xl px-3 py-2.5 text-left ring-1 transition ${on ? "bg-white text-ink ring-white" : "bg-white/5 ring-white/10 hover:bg-white/10"}`}
+                  className={`rounded-md px-3 py-2.5 text-left ring-1 transition ${on ? "bg-white text-ink ring-white" : "bg-white/5 ring-white/10 hover:bg-white/10"}`}
                 >
                   <span className="block text-sm font-semibold">{m === "match" ? s.prefs.modeMatch : s.prefs.modeDaily}</span>
                   <span className={`block text-xs ${on ? "text-ink/70" : "text-fg-muted"}`}>{m === "match" ? s.prefs.modeMatchHelp : s.prefs.modeDailyHelp}</span>
@@ -304,7 +304,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
           </div>
 
           <div className="mt-2 grid gap-2">
-            <label className="flex cursor-pointer items-center gap-3 rounded-2xl bg-white/5 px-3 py-2.5 ring-1 ring-white/10">
+            <label className="flex cursor-pointer items-center gap-3 rounded-md bg-white/5 px-3 py-2.5 ring-1 ring-white/10">
               <span className="relative inline-flex h-6 w-10 shrink-0 items-center">
                 <input
                   type="checkbox"
@@ -314,7 +314,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
                   onChange={(e) => savePrefs({ ...prefs, includeOfficial: e.target.checked })}
                 />
                 <span className="absolute inset-0 rounded-full bg-white/15 transition peer-checked:bg-ok/70 peer-focus-visible:ring-2 peer-focus-visible:ring-accent" />
-                <span className="absolute left-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-4" />
+                <span className="absolute left-0.5 h-5 w-5 rounded-full bg-white transition peer-checked:translate-x-4" />
               </span>
               <span>
                 <span className="block text-sm font-semibold">{s.prefs.officialTitle}</span>
@@ -322,7 +322,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
               </span>
             </label>
 
-            <label className="flex flex-col gap-2 rounded-2xl bg-white/5 px-3 py-2.5 ring-1 ring-white/10 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+            <label className="flex flex-col gap-2 rounded-md bg-white/5 px-3 py-2.5 ring-1 ring-white/10 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
               <span>
                 <span className="block text-sm font-semibold">{s.prefs.earliestTitle}</span>
                 <span className="block text-xs text-fg-muted">{s.prefs.earliestHelp}</span>
@@ -347,13 +347,13 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
           </div>
 
           {existing?.emailStopped && !existing.email && (
-            <p className="mt-4 rounded-2xl border border-amber-300/40 bg-amber-300/15 px-4 py-3 text-sm text-fg-muted">
+            <p className="mt-4 rounded-md border border-amber-300/40 bg-amber-300/15 px-4 py-3 text-sm text-fg-muted">
               {s.prefs.emailStopped(existing.emailStopped.email, existing.emailStopped.reason)}
             </p>
           )}
 
           {existing?.smsStopped && (
-            <p className="mt-4 rounded-2xl border border-amber-300/40 bg-amber-300/15 px-4 py-3 text-sm text-fg-muted">
+            <p className="mt-4 rounded-md border border-amber-300/40 bg-amber-300/15 px-4 py-3 text-sm text-fg-muted">
               {s.prefs.smsStopped(prettyNumber(smsNumber))}
             </p>
           )}
@@ -395,11 +395,11 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
     <div className="mx-auto max-w-lg">
       <Progress steps={s.wizard.steps} current={idx} label={s.wizard.stepOf(idx + 1, total)} />
 
-      <section className="glass glass-strong mt-4 rounded-3xl p-6 sm:p-8">
+      <section className="panel mt-4 rounded-lg p-6 sm:p-8">
         {step === "phone" && (
           <form onSubmit={requestCode}>
             {smsPending && (
-              <div className="mb-5 rounded-2xl border border-amber-300/40 bg-amber-300/15 p-4 text-sm">
+              <div className="mb-5 rounded-md border border-amber-300/40 bg-amber-300/15 p-4 text-sm">
                 <p className="font-semibold text-amber-200">{s.auth.pendingTitle}</p>
                 <p className="mt-1 text-fg-muted">{s.auth.pendingBody}</p>
               </div>
@@ -430,7 +430,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
           <form onSubmit={verify}>
             <h2 className="text-xl font-bold sm:text-2xl">{s.wizard.codeTitle}</h2>
             <p className="mt-2 text-sm text-fg-muted">{s.wizard.codeHelp(sentTo)}</p>
-            {devCode && <p className="mt-3 rounded-xl bg-white/8 px-3 py-2 text-xs text-fg-muted">{s.auth.devCode(devCode)}</p>}
+            {devCode && <p className="mt-3 rounded-md bg-white/8 px-3 py-2 text-xs text-fg-muted">{s.auth.devCode(devCode)}</p>}
             <input
               type="text"
               inputMode="numeric"
@@ -469,11 +469,11 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
                     key={c.key}
                     onClick={() => toggle(c.key)}
                     aria-pressed={on}
-                    className={`flex items-center gap-2 rounded-full py-1.5 pl-1.5 pr-3.5 text-sm font-medium transition ${
+                    className={`flex items-center gap-2 rounded-md py-1.5 pl-1.5 pr-3 text-sm font-medium ${
                       on ? "bg-white text-ink" : "bg-white/6 text-fg-muted ring-1 ring-white/10 hover:bg-white/10 hover:text-fg"
                     }`}
                   >
-                    <span className="h-5 w-5 rounded-full ring-1 ring-black/20" style={{ background: c.hex, boxShadow: on ? `0 0 12px ${c.hex}` : undefined }} />
+                    <span className="h-5 w-5 rounded-sm ring-1 ring-black/20" style={{ background: c.hex }} />
                     {name(c)}
                   </button>
                 );
@@ -537,7 +537,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
           <form onSubmit={(e) => { e.preventDefault(); if (agreed) void save("done", { agree: true }); }}>
             <h2 className="text-xl font-bold sm:text-2xl">{s.agree.title}</h2>
             <p className="mt-2 text-sm text-fg-muted">{s.agree.intro}</p>
-            <div className="mt-5 rounded-2xl border border-white/15 bg-black/25 p-4 text-sm leading-relaxed">
+            <div className="mt-5 rounded-md border border-white/15 bg-black/25 p-4 text-sm leading-relaxed">
               {s.agree.text}
             </div>
             <label className="mt-4 flex cursor-pointer items-start gap-3">
@@ -578,7 +578,7 @@ function Progress({ steps, current, label }: { steps: readonly string[]; current
           <li
             key={name}
             aria-current={i === current ? "step" : undefined}
-            className={`h-1.5 rounded-full transition ${i < current ? "bg-white/70" : i === current ? "bg-white" : "bg-white/15"}`}
+            className={`h-1 ${i < current ? "bg-white/70" : i === current ? "bg-white" : "bg-white/15"}`}
             title={name}
           />
         ))}

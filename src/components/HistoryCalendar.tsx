@@ -48,17 +48,17 @@ export function HistoryCalendar({
 
   return (
     <section>
-      <div className="glass flex items-center justify-between rounded-full p-1">
-        <Link href={`/history?month=${shiftMonth(month, -1)}`} className="rounded-full px-4 py-1.5 text-sm text-fg-muted hover:bg-white/8 hover:text-fg">
+      <div className="flex items-center justify-between border-b border-line pb-3">
+        <Link href={`/history?month=${shiftMonth(month, -1)}`} className="link text-sm">
           ‹ {monthLabel(shiftMonth(month, -1), lang, "short")}
         </Link>
         <h2 className="text-lg font-bold capitalize">{monthLabel(month, lang)}</h2>
-        <Link href={`/history?month=${shiftMonth(month, 1)}`} className="rounded-full px-4 py-1.5 text-sm text-fg-muted hover:bg-white/8 hover:text-fg">
+        <Link href={`/history?month=${shiftMonth(month, 1)}`} className="link text-sm">
           {monthLabel(shiftMonth(month, 1), lang, "short")} ›
         </Link>
       </div>
 
-      <div className="glass mt-4 hidden rounded-3xl p-3 sm:block sm:p-4">
+      <div className="panel mt-4 hidden rounded-lg p-3 sm:block sm:p-4">
         <div className="grid grid-cols-7 gap-1 text-center text-xs text-fg-faint">
           {WEEKDAYS.map((w) => (
             <div key={w} className="py-1">{w}</div>
@@ -70,9 +70,9 @@ export function HistoryCalendar({
             const snap = byDate.get(date);
             const isToday = date === today;
             const future = date > today;
-            const cellClass = `flex min-h-16 flex-col rounded-xl p-1 sm:min-h-24 sm:p-1.5 ${
-              isToday ? "bg-white/12 ring-1 ring-white/40" : snap ? "bg-black/25" : "bg-black/10"
-            } ${future ? "opacity-30" : ""} ${snap ? "transition hover:bg-white/15 hover:ring-1 hover:ring-white/40" : ""}`;
+            const cellClass = `flex min-h-16 flex-col rounded-md p-1 sm:min-h-24 sm:p-1.5 ${
+              isToday ? "bg-white/10 ring-2 ring-accent" : snap ? "bg-black/30" : "bg-black/15"
+            } ${future ? "opacity-30" : ""} ${snap ? "hover:ring-1 hover:ring-fg-faint" : ""}`;
             return (
               <CalendarCell key={date} href={snap ? `/day/${date}` : null} className={cellClass}>
                 <div className="flex items-center justify-between px-0.5 text-[11px] sm:text-xs">
@@ -94,7 +94,7 @@ export function HistoryCalendar({
                           <div
                             key={c.raw}
                             title={c.raw}
-                            className={`gloss relative h-4 overflow-hidden rounded-md text-[10px] font-bold leading-4 sm:h-5 sm:px-1.5 sm:leading-5 ${
+                            className={`h-4 overflow-hidden rounded-sm text-[10px] font-bold leading-4 sm:h-5 sm:px-1.5 sm:leading-5 ${
                               isMine ? "ring-2 ring-white" : dimmed ? "opacity-45" : ""
                             }`}
                             style={{ background: c.siteBackground ?? info.hex, color: info.text }}
@@ -116,7 +116,7 @@ export function HistoryCalendar({
 
       {/* phones: a readable list instead of the grid */}
       <ol className="mt-4 space-y-2 sm:hidden">
-        {days.length === 0 && <li className="glass rounded-2xl px-4 py-3 text-sm text-fg-muted">{s.noneThisMonth}</li>}
+        {days.length === 0 && <li className="panel rounded-md px-4 py-3 text-sm text-fg-muted">{s.noneThisMonth}</li>}
         {days
           .filter((d) => d.date)
           .slice()
@@ -128,7 +128,7 @@ export function HistoryCalendar({
               <li key={date}>
                 <Link
                   href={`/day/${date}`}
-                  className={`glass flex items-center gap-3 rounded-2xl px-4 py-3 ${isToday ? "ring-1 ring-white/40" : ""}`}
+                  className={`panel flex items-center gap-3 rounded-md px-4 py-3 ${isToday ? "ring-2 ring-accent" : ""}`}
                 >
                   <span className="w-14 shrink-0">
                     <span className="block text-lg font-bold leading-none">{Number(date.slice(-2))}</span>
@@ -142,7 +142,7 @@ export function HistoryCalendar({
                       return (
                         <span
                           key={c.raw}
-                          className={`gloss relative rounded-lg px-2.5 py-1 text-sm font-bold ${isMine ? "ring-2 ring-white" : ""}`}
+                          className={`rounded-sm px-2.5 py-1 text-sm font-bold ${isMine ? "ring-2 ring-white" : ""}`}
                           style={{ background: c.siteBackground ?? info.hex, color: info.text }}
                         >
                           <span className="relative capitalize">{lang === "es" ? c.spanish || c.english : c.english}</span>

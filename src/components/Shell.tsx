@@ -5,6 +5,7 @@ import { t } from "@/lib/i18n";
 import { LangProvider, LangToggle } from "./LangProvider";
 import { NavTabs } from "./NavTabs";
 import { HiddenShortcuts } from "./HiddenShortcuts";
+import { LogoMark } from "./LogoMark";
 import { myColors } from "@/lib/mine";
 import { env } from "@/lib/env";
 import { ready } from "@/lib/config";
@@ -44,11 +45,10 @@ export async function Shell({ children }: { children: React.ReactNode }) {
           )}
         </div>
       )}
-      <header className="sticky top-0 z-30 border-b border-white/5 bg-ink/55 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <Link href="/" className="display flex items-center gap-2.5 text-lg font-bold">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/mark.svg" alt="" width={28} height={28} className="h-7 w-7 rounded-lg" />
+      <header className="sticky top-0 z-30 border-b border-line bg-ink">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-2 sm:px-6">
+          <Link href="/" className="flex items-center gap-2.5 text-base font-semibold">
+            <LogoMark />
             {brand}
             {mine.length > 0 && (
               <span className="inline-flex translate-y-[-1px] items-center" title={mine.map((k) => colorInfo(k).english).join(", ")}>
@@ -57,8 +57,8 @@ export async function Shell({ children }: { children: React.ReactNode }) {
                   return (
                     <span
                       key={k}
-                      className="inline-block h-3 w-3 rounded-full ring-2 ring-ink"
-                      style={{ background: c.hex, boxShadow: `0 0 12px ${c.hex}`, marginLeft: i ? -5 : 0 }}
+                      className="inline-block h-3 w-3 rounded-sm"
+                      style={{ background: c.hex, marginLeft: i ? 3 : 0 }}
                     />
                   );
                 })}
@@ -66,14 +66,14 @@ export async function Shell({ children }: { children: React.ReactNode }) {
             )}
           </Link>
           <NavTabs placement="top" />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
             <a
               href="https://github.com/ZeProxi/isitmycolor.today"
               target="_blank"
               rel="noreferrer"
               aria-label={s.footer.source}
               title={s.footer.source}
-              className="glass hidden h-8 w-8 items-center justify-center rounded-full text-fg-muted transition hover:text-fg sm:inline-flex"
+              className="hidden text-fg-muted hover:text-fg sm:inline-flex"
             >
               <svg className="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
                 <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
@@ -84,10 +84,22 @@ export async function Shell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-28 pt-2 sm:px-6 md:pb-16">{children}</main>
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-16 pt-2 sm:px-6">{children}</main>
 
-      <footer className="mx-auto w-full max-w-5xl px-4 pb-28 pt-4 sm:px-6 md:pb-10">
-        <div className="border-t border-white/10 pt-6 text-sm">
+      <footer className="mt-10">
+        {/* the Wasatch ridge line from the logo; the footer is the ground under it */}
+        <svg aria-hidden className="-mb-px block h-14 w-full sm:h-24" viewBox="0 0 1200 120" preserveAspectRatio="none">
+          <path
+            fill="var(--line)"
+            d="M0 120V84L70 54 116 72 178 28 218 54 272 16 330 62 374 42 446 76 512 24 562 54 600 36 664 76 748 18 804 54 852 32 922 74 984 44 1038 68 1100 34 1150 60 1200 40V120z"
+          />
+          <path
+            fill="var(--ink-2)"
+            d="M0 120V102L58 76 102 92 172 52 224 86 264 72 330 102 408 56 454 84 514 62 586 100 640 76 706 106 796 56 854 90 898 74 974 110 1034 82 1100 104 1160 78 1200 92V120z"
+          />
+        </svg>
+        <div className="bg-ink-2">
+        <div className="mx-auto w-full max-w-5xl px-4 pb-28 pt-2 text-sm sm:px-6 md:pb-10">
           <p className="font-semibold text-fg">{s.footer.lead}</p>
           <p className="mt-1 max-w-prose text-fg-muted">{s.footer.body}</p>
           <ul className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-fg-muted">
@@ -128,9 +140,9 @@ export async function Shell({ children }: { children: React.ReactNode }) {
             </li>
           </ul>
         </div>
+        </div>
       </footer>
 
-      <div aria-hidden className="tabbar-fade pointer-events-none fixed inset-x-0 bottom-0 z-30 h-28 md:hidden" />
       <NavTabs placement="bottom" />
     </LangProvider>
   );

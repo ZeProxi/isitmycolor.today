@@ -37,7 +37,7 @@ export async function Locations() {
 
   return (
     <section>
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <div className="rise flex flex-wrap items-baseline justify-between gap-2" style={{ "--d": 700 } as React.CSSProperties}>
         <h2 className="text-2xl font-bold">{s.title}</h2>
         <a
           className="text-sm text-fg-muted underline decoration-fg-faint underline-offset-4 hover:text-fg"
@@ -48,13 +48,13 @@ export async function Locations() {
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {LOCATIONS.map((loc) => {
+        {LOCATIONS.map((loc, idx) => {
           const st = openStatus(loc, weekday, hour);
           const pill =
             st.state === "open"
-              ? { text: s.closesIn(fmtHour(st.until), fmtLeft(st.until - hour, lang)), cls: "bg-ok/15 text-ok ring-ok/30" }
+              ? { text: s.closesIn(fmtHour(st.until), fmtLeft(st.until - hour, lang)), cls: "text-ok" }
               : st.state === "break"
-                ? { text: s.lunch(fmtHour(st.until)), cls: "bg-amber-400/15 text-amber-300 ring-amber-300/30" }
+                ? { text: s.lunch(fmtHour(st.until)), cls: "text-amber-300" }
                 : {
                     text: st.opensAt
                       ? s.closedOpens(
@@ -62,17 +62,17 @@ export async function Locations() {
                           fmtHour(st.opensAt),
                         )
                       : s.closed,
-                    cls: "bg-white/6 text-fg-muted ring-white/10",
+                    cls: "text-fg-muted",
                   };
           const note = loc.weekend.length ? s.jkNote : s.clinicNote;
           return (
-            <article key={loc.name} className="glass flex flex-col rounded-3xl p-5">
+            <article key={loc.name} className="rise panel flex flex-col rounded-lg p-5" style={{ "--d": 780 + idx * 80 } as React.CSSProperties}>
               {/* The status pill always gets its own line under the name. Beside the name it
                   only fit on some cards, so the four looked different from each other. */}
               <h3 className="text-lg font-bold leading-tight">{loc.name}</h3>
               <p className="text-sm text-fg-muted">{loc.short}</p>
               <span
-                className={`mt-2.5 max-w-full self-start rounded-2xl px-2.5 py-1 text-xs font-medium ring-1 ${pill.cls}`}
+                className={`mt-2 text-sm font-medium ${pill.cls}`}
               >
                 {pill.text}
               </span>

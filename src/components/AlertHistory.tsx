@@ -44,7 +44,7 @@ export function AlertHistory({ refreshKey = 0 }: { refreshKey?: number }) {
   };
 
   return (
-    <details className="mt-4 rounded-2xl border border-white/10" open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
+    <details className="mt-4 rounded-md border border-white/10" open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
       <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold">{s.alertLog.title}</summary>
       <div className="px-4 pb-4">
         {rows === null ? (
