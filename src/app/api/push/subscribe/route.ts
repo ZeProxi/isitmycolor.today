@@ -1,12 +1,12 @@
 import type { NextRequest } from "next/server";
-import { currentPhone } from "@/lib/auth";
+import { currentAccount } from "@/lib/auth";
 import { addPushSubscription, removePushSubscription } from "@/lib/push";
 
 const unauthorized = () => Response.json({ error: "unauthorized" }, { status: 401 });
 
 /** POST { subscription } -> remember this device for the signed-in person */
 export async function POST(req: NextRequest) {
-  const phone = await currentPhone();
+  const phone = await currentAccount();
   if (!phone) return unauthorized();
   let body: { subscription?: { endpoint?: string; keys?: { p256dh?: string; auth?: string } } };
   try {
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
 /** DELETE { endpoint } -> forget this device */
 export async function DELETE(req: NextRequest) {
-  const phone = await currentPhone();
+  const phone = await currentAccount();
   if (!phone) return unauthorized();
   let body: { endpoint?: string };
   try {

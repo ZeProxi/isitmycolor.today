@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useLang } from "./LangProvider";
 
-type State = "checking" | "unsupported" | "needs-install" | "off" | "on" | "denied" | "busy";
+type State = "unavailable" | "checking" | "unsupported" | "needs-install" | "off" | "on" | "denied" | "busy";
 
 function urlBase64ToUint8Array(base64: string) {
   const padding = "=".repeat((4 - (base64.length % 4)) % 4);
@@ -16,7 +16,7 @@ function urlBase64ToUint8Array(base64: string) {
  * free, no carrier involved. On iPhone it only works after the site is added to
  * the home screen, so we say that instead of showing a button that can't work.
  */
-export function PushButton() {
+export function PushButton({ className = "rounded-md bg-white/5 px-3 py-2.5 ring-1 ring-white/10", title, help }: { className?: string; title?: string; help?: string } = {}) {
   const { s } = useLang();
   const [state, setState] = useState<State>("checking");
   const [msg, setMsg] = useState("");
@@ -28,6 +28,8 @@ export function PushButton() {
         const standalone = (navigator as { standalone?: boolean }).standalone === true || matchMedia("(display-mode: standalone)").matches;
         return setState(isIOS && !standalone ? "needs-install" : "unsupported");
       }
+      // No push keys on this server (a local dev setup, usually): show the card, but say so instead of offering a button that can only fail.
+      if (!(await fetch("/api/push/key")).ok) return setState("unavailable");
       if (Notification.permission === "denied") return setState("denied");
       const reg = await navigator.serviceWorker.register("/sw.js");
       const sub = await reg.pushManager.getSubscription();
@@ -73,12 +75,12 @@ export function PushButton() {
   if (state === "checking") return null;
 
   return (
-    <div className="rounded-md bg-white/5 px-3 py-2.5 ring-1 ring-white/10">
+    <div className={className}>
       <div className="flex items-center justify-between gap-3">
         <span>
-          <span className="block text-sm font-semibold">{s.push.title}</span>
+          <span className="block text-sm font-semibold">{title ?? s.push.title}</span>
           <span className="block text-xs text-fg-muted">
-            {state === "needs-install" ? s.push.needsInstall : state === "unsupported" ? s.push.unsupported : state === "denied" ? s.push.denied : s.push.help}
+            {state === "needs-install" ? s.push.needsInstall : state === "unavailable" ? s.push.unavailable : state === "unsupported" ? s.push.unsupported : state === "denied" ? s.push.denied : (help ?? s.push.help)}
           </span>
         </span>
         {(state === "off" || state === "on" || state === "busy") && (
@@ -86,13 +88,13 @@ export function PushButton() {
             type="button"
             onClick={state === "on" ? disable : enable}
             disabled={state === "busy"}
-            className={state === "on" ? "btn-ghost shrink-0 text-sm" : "btn-primary shrink-0 text-sm"}
+            className={state === "on" ? "btn-ghost shrink-0 px-3 py-1.5 text-sm" : "btn-primary shrink-0 px-3 py-1.5 text-sm"}
           >
             {state === "busy" ? "…" : state === "on" ? s.push.turnOff : s.push.turnOn}
           </button>
         )}
       </div>
-      {msg && <p className="mt-2 text-xs text-ok">{msg}</p>}
+      {msg && <p className={`mt-2 text-xs ${msg === s.push.failed ? "text-danger" : "text-ok"}`} role="status">{msg}</p>}
     </div>
   );
 }

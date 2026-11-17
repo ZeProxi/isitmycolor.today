@@ -50,20 +50,6 @@ export async function Shell({ children }: { children: React.ReactNode }) {
           <Link href="/" className="flex items-center gap-2.5 text-base font-semibold">
             <LogoMark />
             {brand}
-            {mine.length > 0 && (
-              <span className="inline-flex translate-y-[-1px] items-center" title={mine.map((k) => colorInfo(k).english).join(", ")}>
-                {mine.slice(0, 3).map((k, i) => {
-                  const c = colorInfo(k);
-                  return (
-                    <span
-                      key={k}
-                      className="inline-block h-3 w-3 rounded-sm"
-                      style={{ background: c.hex, marginLeft: i ? 3 : 0 }}
-                    />
-                  );
-                })}
-              </span>
-            )}
           </Link>
           <NavTabs placement="top" />
           <div className="flex items-center gap-4">

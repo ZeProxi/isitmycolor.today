@@ -1,5 +1,5 @@
 import { fetchColors, type ColorsSnapshot } from "./scrape";
-import { listActiveSubscribers, markNotified, saveSnapshot, setSmsStopped, DEFAULT_PREFS, type Subscriber } from "./dynamo";
+import { deleteSubscriber, emailOf, listActiveSubscribers, markNotified, saveSnapshot, setSmsStopped, smsOf, DEFAULT_PREFS, type Subscriber } from "./dynamo";
 import { sendSms, listOptedOut } from "./sms";
 import { sendEmail } from "./email";
 import { todayIsoMountain, hourMountain, nowIso } from "./dates";
@@ -8,10 +8,11 @@ import { ready } from "./config";
 import { requestScreenshot } from "./screenshot";
 import { diagnose, alertOwner } from "./health";
 import { sendPush } from "./push";
-import { logAlert, type ChannelStatus } from "./alertlog";
+import { deleteAlerts, logAlert, type ChannelStatus } from "./alertlog";
 import { unsubscribeUrl } from "./unsubscribe";
 import { colorInfo } from "./colors";
 import { t, isLang, type Lang } from "./i18n";
+import { emailShell, emailText, esc, EMAIL_ACCENT } from "./email-layout";
 
 export type NotifyResult = {
   snapshot: ColorsSnapshot;
@@ -23,6 +24,8 @@ export type NotifyResult = {
   subscribersChecked: number;
   notified: { phone: string; colors: string[]; kind: "match" | "daily"; messageId?: string; dryRun: boolean; email?: string; smsError?: string; push?: string }[];
   skipped: { phone: string; reason: string }[];
+  /** accounts removed this run because their own auto-stop date had passed */
+  expired: string[];
   errors: { phone: string; error: string }[];
 };
 
@@ -67,45 +70,66 @@ export function buildMessage(snapshot: ColorsSnapshot, matched: string[], sub: W
   return msg;
 }
 
-const esc = (v: string) =>
-  v.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string);
+/** The alert sentence without the text-message-only "Reply STOP" ending, for the plain-text part of an email. */
+export function forEmail(message: string): string {
+  return message.replace(/\s*(Reply STOP to opt out|Responde STOP para darte de baja)\.\s*$/, "");
+}
 
-/** HTML email: our summary, plus (if asked) a rendering of the official page as captured. */
+/** HTML email: today's colors as flat tiles, the same sentence as the text, plus (if asked) the official page as captured. */
 export function buildEmailHtml(snapshot: ColorsSnapshot, matched: string[], sub: Who, text: string, unsubscribe?: string): string {
   const l = langOf(sub);
   const s = t(l);
+  const { fg, muted, line: rule, font } = emailText;
   const url = dayPageUrl(snapshot);
-  const blocks = snapshot.colors
+  const isMatch = matched.length > 0;
+  const tiles = snapshot.colors
     .map((c) => {
       const info = colorInfo(c.key, c);
+      const hex = c.siteBackground ?? info.hex;
       const mine = matched.includes(c.key);
-      return `<div style="background:${info.hex};color:${info.text};font:bold 22px/1 Arial,sans-serif;padding:18px 20px;border-radius:12px;margin:8px 0;${mine ? "outline:3px solid #fff;" : ""}">${esc(c.raw)}${mine ? " &#10003;" : ""}</div>`;
+      const primary = l === "es" ? c.spanish || info.spanish || c.english : c.english;
+      const secondary = l === "es" ? c.english : c.spanish || info.spanish;
+      return `<tr><td style="padding:0 0 8px">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td bgcolor="${esc(hex)}" style="background:${esc(hex)};color:${info.text};border-radius:6px;padding:16px 18px;${mine ? `border:3px solid ${EMAIL_ACCENT};` : "border:1px solid rgba(255,255,255,0.15);"}">
+            <span style="font:700 24px/1.1 ${font};text-transform:capitalize">${esc(primary)}</span>${secondary ? `<span style="font:500 14px/1.1 ${font};opacity:0.8"> &nbsp;${esc(secondary)}</span>` : ""}
+            ${mine ? `<span style="float:right;background:#ffffff;color:#131313;border-radius:3px;padding:3px 8px;font:700 11px/1.2 ${font}">${esc(s.home.yourColor)}</span>` : ""}
+          </td>
+        </tr></table>
+      </td></tr>`;
     })
     .join("");
   const official = sub.prefs?.includeOfficial
-    ? `<div style="margin-top:24px;padding:16px;border:1px solid #ddd;border-radius:12px;background:#fff;color:#111">
+    ? `<div style="margin-top:22px;padding:16px;border:1px solid #ddd;border-radius:6px;background:#fff;color:#111">
          <p style="font:bold 13px Arial,sans-serif;margin:0 0 10px;color:#555">${esc(snapshot.sourceUrl)} &middot; ${esc(s.day.captured(capturedAt(snapshot, l)))}</p>
          ${snapshot.announcement ? `<p style="font:bold 17px Georgia,serif;margin:0 0 12px">${esc(snapshot.announcement)}</p>` : ""}
          <p style="font:bold 17px Georgia,serif;margin:0 0 8px">Colors for <span style="background:yellow">${esc(snapshot.dayName)}</span> ${esc(snapshot.dateText)}</p>
          ${snapshot.colors
            .map(
              (c) =>
-               `<div style="background:${esc(c.siteBackground ?? colorInfo(c.key).hex)};font:18px Arial,sans-serif;padding:20px 10px;width:300px;margin:6px 0">${esc(c.raw)}</div>`,
+               `<div style="background:${esc(c.siteBackground ?? colorInfo(c.key).hex)};font:18px Arial,sans-serif;padding:20px 10px;max-width:300px;margin:6px 0">${esc(c.raw)}</div>`,
            )
            .join("")}
          ${url ? `<p style="font:12px Arial,sans-serif;margin:12px 0 0"><a href="${esc(url)}">${esc(url)}</a></p>` : ""}
        </div>`
     : "";
-  return `<!doctype html><html><body style="margin:0;padding:24px;background:#0b1220;color:#eef2ff;font:15px/1.5 Arial,sans-serif">
-    <div style="max-width:520px;margin:0 auto">
-      <p style="font:bold 24px Arial,sans-serif;margin:0 0 4px">${esc(matched.length ? s.emailSubject.match : s.emailSubject.noMatch)}</p>
-      <p style="margin:0 0 16px;color:#9aa6c4">${esc(snapshot.dayName)} ${esc(snapshot.dateText)}</p>
-      ${blocks}
-      <p style="margin:16px 0 0">${esc(text)}</p>
-      ${official}
-      <p style="margin:24px 0 0;font-size:12px;color:#9aa6c4"><a style="color:#9aa6c4" href="${esc(snapshot.sourceUrl)}">${esc(snapshot.sourceUrl)}</a></p>
-      ${unsubscribe ? `<p style="margin:8px 0 0;font-size:12px;color:#9aa6c4"><a style="color:#9aa6c4" href="${esc(unsubscribe)}">${esc(s.emailUnsubscribe)}</a> &middot; ${esc(s.emailWhy)}</p>` : ""}
-    </div></body></html>`;
+  // The email says it in its own words: the text message's "Reply STOP" line means nothing here.
+  const mineNames = matched
+    .map((k) => {
+      const c = colorInfo(k, snapshot.colors.find((x) => x.key === k));
+      return l === "es" && c.spanish ? c.spanish : c.english;
+    })
+    .join(", ");
+  const line = isMatch ? s.emailLine.match(mineNames) : snapshot.colors.length ? s.emailLine.noMatch : s.emailLine.none;
+  const body = `      <p style="margin:0;font:600 13px/1.3 ${font};color:${muted}">${esc(snapshot.dayName)} ${esc(snapshot.dateText)}</p>
+      <p style="margin:6px 0 18px;font:700 26px/1.15 ${font};color:${isMatch ? EMAIL_ACCENT : fg}">${esc(isMatch ? s.emailSubject.match : s.emailSubject.noMatch)}</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${tiles}</table>
+      <p style="margin:12px 0 0;padding-top:16px;border-top:1px solid ${rule};font:15px/1.55 ${font};color:${fg}">${esc(line)}</p>
+      ${official}`;
+  const footer = unsubscribe
+    ? `${esc(s.emailWhy)} <a href="${esc(unsubscribe)}" style="color:${muted}">${esc(s.emailUnsubscribe)}</a>`
+    : undefined;
+  return emailShell({ lang: l, preheader: `${line} ${forEmail(text)}`, body, footer });
 }
 
 /**
@@ -140,6 +164,7 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
     subscribersChecked: 0,
     notified: [],
     skipped: [],
+    expired: [],
     errors: [],
   };
 
@@ -163,14 +188,27 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
   // Numbers that replied STOP: the carrier already blocks them; we stop trying and say so.
   const optedOut = await listOptedOut();
   for (const sub of subscribers) {
-    if (optedOut) {
-      const off = optedOut.has(sub.phone);
+    // They asked to be opted out and forgotten after this date: same as pressing Stop.
+    const endDate = sub.prefs?.endDate;
+    if (endDate && today > endDate) {
+      try {
+        await Promise.all([deleteSubscriber(sub.phone), deleteAlerts(sub.phone)]);
+        result.expired.push(sub.phone);
+      } catch (e) {
+        result.errors.push({ phone: sub.phone, error: e instanceof Error ? e.message : String(e) });
+      }
+      continue;
+    }
+    const number = smsOf(sub);
+    if (optedOut && number) {
+      const off = optedOut.has(number);
       if (off !== !!sub.smsStopped) {
         await setSmsStopped(sub.phone, off);
         sub.smsStopped = off ? nowIso() : undefined;
       }
     }
     const smsOff = !!sub.smsStopped;
+    const address = sub.emailStopped ? undefined : emailOf(sub);
     const prefs = sub.prefs ?? DEFAULT_PREFS;
     const matched = sub.colors.filter((c) => todayKeys.has(c));
     if (matched.length === 0 && prefs.mode !== "daily") {
@@ -189,20 +227,20 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
       const message = buildMessage(snapshot, matched, sub);
       let r: { messageId?: string; dryRun: boolean } = { dryRun: false };
       let smsError: string | undefined;
-      if (!smsOff) {
+      if (number && !smsOff) {
         try {
-          r = await sendSms(sub.phone, message);
+          r = await sendSms(number, message);
         } catch (e) {
           smsError = e instanceof Error ? e.message : String(e);
         }
       }
       let email: string | undefined;
-      if (sub.email) {
+      if (address) {
         try {
           const subj = t(langOf(sub)).emailSubject[matched.length ? "match" : "noMatch"];
           const unsub = unsubscribeUrl(sub.phone);
-          const text = `${message}\n\n${t(langOf(sub)).emailUnsubscribe}: ${unsub}`;
-          const e = await sendEmail(sub.email, subj, text, buildEmailHtml(snapshot, matched, sub, message, unsub), undefined, undefined, unsub);
+          const text = `${forEmail(message)}\n\n${t(langOf(sub)).emailUnsubscribe}: ${unsub}`;
+          const e = await sendEmail(address, subj, text, buildEmailHtml(snapshot, matched, sub, message, unsub), undefined, undefined, unsub);
           email = e.skipped ? `skipped: ${e.skipped}` : e.dryRun ? "dry-run" : "sent";
         } catch (e) {
           email = `failed: ${e instanceof Error ? e.message : String(e)}`;
@@ -220,11 +258,16 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
         date: snapshot.date!,
         kind: matched.length ? "match" : "daily",
         colors: matched,
-        sms: smsOff ? "stopped" : smsError ? "failed" : r.dryRun ? "dry-run" : "sent",
+        sms: !number ? undefined : smsOff ? "stopped" : smsError ? "failed" : r.dryRun ? "dry-run" : "sent",
         email: st(email),
         push: st(push),
       });
-      if (smsError && email !== "sent" && !push?.startsWith("1") && push !== "dry-run") throw new Error(smsError);
+      // Something was tried and nothing got through: leave them un-notified so the next run tries again.
+      const smsWent = !!number && !smsOff && !smsError;
+      const emailWent = email === "sent" || email === "dry-run";
+      const pushWent = push === "dry-run" || (!!push && !push.startsWith("0/"));
+      const tried = (number && !smsOff) || address || sub.push?.length;
+      if (tried && !smsWent && !emailWent && !pushWent) throw new Error(smsError ?? email ?? "nothing could be delivered");
       await markNotified(sub.phone, snapshot.date!);
       result.notified.push({ phone: sub.phone, colors: matched, kind: matched.length ? "match" : "daily", email, smsError, push, ...r });
     } catch (e) {

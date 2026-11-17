@@ -13,6 +13,7 @@ import type { ColorsSnapshot } from "./scrape";
 import { nowIso } from "./dates";
 import { KNOWN_COLORS, textOn, type ColorInfo } from "./colors";
 import { ready } from "./config";
+import { derivedId, type Contact, type ContactKind, type Contacts } from "./contact";
 
 let _doc: DynamoDBDocumentClient | null = null;
 export function docClient() {
@@ -40,6 +41,8 @@ export type AlertPrefs = {
   includeOfficial: boolean;
   /** Don't text before this Mountain-time hour (1-12; default 6). */
   earliestHour: number;
+  /** Last day (YYYY-MM-DD, Mountain) alerts are wanted. The day after, the alert is removed as if they pressed Stop. */
+  endDate?: string;
 };
 
 /** Bump when the agreement wording changes materially; people will be asked again. */
@@ -48,9 +51,19 @@ export const AGREEMENT_VERSION = 1;
 export const DEFAULT_PREFS: AlertPrefs = { mode: "match", includeOfficial: false, earliestHour: 6 };
 
 export type Subscriber = {
-  /** E.164 phone, partition key, e.g. "+18015551234" */
+  /**
+   * Account id and partition key. The attribute is still called `phone` because
+   * that is the table's key, but it is an id, not a number to text: an E.164
+   * phone for accounts that started with a number, "email:<address>" for ones
+   * that started with an email, or "acct:<uuid>". Read the contacts with
+   * smsOf() / emailOf(), never from this field.
+   */
   phone: string;
+  /** Verified mobile number texts go to. "" means it was removed; undefined on older rows, where the id is the number. */
+  sms?: string;
   email?: string;
+  /** true once the person proved the address with a code. Unverified addresses are never emailed. */
+  emailVerified?: boolean;
   /** normalized color keys, e.g. ["green", "blue"] */
   colors: string[];
   active: boolean;
@@ -83,35 +96,123 @@ export async function getSubscriber(phone: string): Promise<Subscriber | null> {
   return (r.Item as Subscriber) ?? null;
 }
 
+/** The number to text for this account, if it has one. */
+export function smsOf(sub: Pick<Subscriber, "phone" | "sms">): string | undefined {
+  if (sub.sms !== undefined) return sub.sms || undefined;
+  return sub.phone.startsWith("+") ? sub.phone : undefined;
+}
+
+/** The address this account proved it owns, if any. */
+export function emailOf(sub: Pick<Subscriber, "email" | "emailVerified">): string | undefined {
+  return sub.email && sub.emailVerified ? sub.email : undefined;
+}
+
+export function contactsOf(sub: Subscriber): Contacts {
+  return { sms: smsOf(sub), email: emailOf(sub) };
+}
+
+/** Create the alert (with the contacts proven in this session) or update its colors, language and settings. */
 export async function upsertSubscriber(input: {
   phone: string;
-  email?: string;
   colors: string[];
   lang?: string;
   prefs?: AlertPrefs;
   /** true = record acceptance of the current agreement now */
   agree?: boolean;
+  /** used only when the row doesn't exist yet */
+  contacts?: Contacts;
 }): Promise<Subscriber> {
   const existing = await getSubscriber(input.phone);
   const now = nowIso();
   const item: Subscriber = {
-    phone: input.phone,
-    email: input.email === undefined ? existing?.email : input.email || undefined,
+    // a brand-new row starts from the contacts verified at sign-in
+    ...(existing ?? {
+      phone: input.phone,
+      sms: input.contacts?.sms,
+      email: input.contacts?.email,
+      emailVerified: input.contacts?.email ? true : undefined,
+      active: true,
+      createdAt: now,
+    }),
     colors: input.colors,
     lang: input.lang ?? existing?.lang,
     prefs: input.prefs ?? existing?.prefs ?? DEFAULT_PREFS,
-    testSends: existing?.testSends,
-    push: existing?.push,
     agreedAt: input.agree ? now : existing?.agreedAt,
     agreementVersion: input.agree ? AGREEMENT_VERSION : existing?.agreementVersion,
     active: true,
-    createdAt: existing?.createdAt ?? now,
     updatedAt: now,
-    lastNotifiedDate: existing?.lastNotifiedDate,
-    ownerId: existing?.ownerId,
-  };
+  } as Subscriber;
   await (await client()).send(new PutCommand({ TableName: env.subscribersTable, Item: item }));
   return item;
+}
+
+/** The account that holds this verified contact, or null. */
+export async function findAccountByContact(c: Contact): Promise<Subscriber | null> {
+  // Fast path: most accounts still live under the id their first contact gave them.
+  const direct = await getSubscriber(derivedId(c));
+  if (direct && (c.kind === "sms" ? smsOf(direct) : emailOf(direct)) === c.value) return direct;
+  // Otherwise look for it on any row (a handful of rows; a scan is fine at this size).
+  let ExclusiveStartKey: Record<string, unknown> | undefined;
+  do {
+    const r = await (await client()).send(
+      new ScanCommand({
+        TableName: env.subscribersTable,
+        FilterExpression: c.kind === "sms" ? "sms = :v" : "email = :v AND emailVerified = :t",
+        ExpressionAttributeValues: c.kind === "sms" ? { ":v": c.value } : { ":v": c.value, ":t": true },
+        ExclusiveStartKey,
+      }),
+    );
+    const hit = (r.Items as Subscriber[] | undefined)?.find((i) => typeof i.active === "boolean");
+    if (hit) return hit;
+    ExclusiveStartKey = r.LastEvaluatedKey;
+  } while (ExclusiveStartKey);
+  return null;
+}
+
+/** Attach a contact the person just proved with a code. Clears any "stopped" flag for that channel. */
+export async function setContact(id: string, c: Contact) {
+  await (await client()).send(
+    new UpdateCommand({
+      TableName: env.subscribersTable,
+      Key: { phone: id },
+      UpdateExpression:
+        c.kind === "sms" ? "SET sms = :v, updatedAt = :u REMOVE smsStopped" : "SET email = :v, emailVerified = :t, updatedAt = :u REMOVE emailStopped",
+      ExpressionAttributeValues: c.kind === "sms" ? { ":v": c.value, ":u": nowIso() } : { ":v": c.value, ":t": true, ":u": nowIso() },
+      ConditionExpression: "attribute_exists(phone)",
+    }),
+  );
+}
+
+/** Drop one channel from an account. The caller makes sure the other one remains. */
+export async function removeContact(id: string, kind: ContactKind) {
+  await (await client()).send(
+    new UpdateCommand({
+      TableName: env.subscribersTable,
+      Key: { phone: id },
+      // sms is set to "" rather than removed, so an id that is itself a number stops counting as one
+      UpdateExpression: kind === "sms" ? "SET sms = :e, updatedAt = :u REMOVE smsStopped" : "SET updatedAt = :u REMOVE email, emailVerified, emailStopped",
+      ExpressionAttributeValues: kind === "sms" ? { ":e": "", ":u": nowIso() } : { ":u": nowIso() },
+      ConditionExpression: "attribute_exists(phone)",
+    }),
+  );
+}
+
+/**
+ * Fold `from` into `into` after its owner proved they hold one of `from`'s
+ * contacts: colors and devices are combined, `into` keeps its own settings and
+ * picks up a channel it was missing, and `from` is deleted.
+ */
+export async function mergeAccounts(into: Subscriber, from: Subscriber): Promise<void> {
+  const colors = Array.from(new Set([...into.colors, ...from.colors])).slice(0, 10);
+  const push = [...(into.push ?? []), ...(from.push ?? []).filter((p) => !(into.push ?? []).some((q) => q.endpoint === p.endpoint))].slice(-5);
+  const merged: Subscriber = { ...into, colors, push: push.length ? push : undefined, updatedAt: nowIso() };
+  if (!smsOf(into) && smsOf(from)) merged.sms = smsOf(from);
+  if (!emailOf(into) && emailOf(from)) {
+    merged.email = emailOf(from);
+    merged.emailVerified = true;
+  }
+  await (await client()).send(new PutCommand({ TableName: env.subscribersTable, Item: merged }));
+  await deleteSubscriber(from.phone);
 }
 
 export async function deleteSubscriber(phone: string) {
@@ -147,7 +248,11 @@ export async function markNotified(phone: string, date: string) {
   );
 }
 
-/** Remove someone's email after a hard bounce, a spam complaint, or their own unsubscribe click. */
+/**
+ * Stop emailing someone after a hard bounce, a spam complaint, or their own
+ * unsubscribe click. The address stays on the account, since it may be how they
+ * sign in; verifying it again turns emails back on.
+ */
 export async function clearEmail(phone: string, reason: "bounce" | "complaint" | "unsubscribe") {
   const cur = await getSubscriber(phone);
   if (!cur) return;
@@ -155,8 +260,8 @@ export async function clearEmail(phone: string, reason: "bounce" | "complaint" |
     new UpdateCommand({
       TableName: env.subscribersTable,
       Key: { phone },
-      UpdateExpression: "SET email = :e, emailStopped = :s, updatedAt = :u",
-      ExpressionAttributeValues: { ":e": "", ":s": { at: nowIso(), reason, email: cur.email ?? "" }, ":u": nowIso() },
+      UpdateExpression: "SET emailStopped = :s, updatedAt = :u",
+      ExpressionAttributeValues: { ":s": { at: nowIso(), reason, email: cur.email ?? "" }, ":u": nowIso() },
     }),
   );
 }
@@ -337,7 +442,7 @@ export async function getKnownColorKeys(): Promise<string[]> {
 }
 
 // ---------- One-time codes (sign-in) ----------
-// Stored in the subscribers table under key "otp#<phone>" so no extra table is needed.
+// Stored in the subscribers table under key "otp#<phone or email>" so no extra table is needed.
 // They never have `active`, so the subscriber scan filter ignores them.
 
 export type OtpRecord = {

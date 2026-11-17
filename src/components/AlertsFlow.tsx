@@ -6,13 +6,14 @@ import { useLang } from "./LangProvider";
 import { PushButton } from "./PushButton";
 import { AlertHistory } from "./AlertHistory";
 
-type Prefs = { mode: "match" | "daily"; includeOfficial: boolean; earliestHour: number };
+type Prefs = { mode: "match" | "daily"; includeOfficial: boolean; earliestHour: number; endDate?: string };
 const DEFAULT_PREFS: Prefs = { mode: "match", includeOfficial: false, earliestHour: 6 };
+type Kind = "sms" | "email";
+type Contacts = { sms?: string; email?: string };
 type Subscriber = {
-  phone: string;
+  phone: string; // the account id, not necessarily a number
   colors: string[];
   lang?: string;
-  email?: string;
   prefs?: Prefs;
   agreedAt?: string;
   smsStopped?: string;
@@ -20,31 +21,39 @@ type Subscriber = {
   agreementVersion?: number;
   lastNotifiedDate?: string;
 };
-type Step = "loading" | "phone" | "code" | "colors" | "email" | "agree" | "done";
+type Step = "loading" | "channel" | "phone" | "email" | "code" | "colors" | "agree" | "done";
 const AGREEMENT_VERSION = 1;
 const hasAgreed = (sub: Subscriber | null) => !!sub?.agreedAt && (sub.agreementVersion ?? 0) >= AGREEMENT_VERSION;
 type Status = { kind: "idle" | "busy" | "ok" | "err"; msg?: string };
 
-const STEP_INDEX: Record<Exclude<Step, "loading" | "done">, number> = { phone: 0, code: 1, colors: 2, email: 3, agree: 4 };
+/** Progress bar position: choosing and entering a contact, its code, colors, agreement. */
+const STEP_INDEX: Record<Exclude<Step, "loading" | "done">, number> = { channel: 0, phone: 0, email: 0, code: 1, colors: 2, agree: 3 };
 
 /**
  * One question per screen:
- *   phone -> code -> colors -> email (optional) -> done
- * Returning people with an alert land on "done" and edit from there.
+ *   how to reach you -> number and/or email, each proven with a code -> colors -> agree -> done
+ * Returning people enter the number or email they used and land on "done",
+ * where either channel can be added, replaced or removed.
  */
 /** "+18777453950" -> "877-745-3950" for the START instructions. */
 const prettyNumber = (n: string) => n.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, "$1-$2-$3") || "the number that texts you";
+/** "+18015551234" -> "(801) 555-1234" */
+const prettyPhone = (n: string) => n.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, "($1) $2-$3");
 
 export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?: boolean; smsNumber?: string }) {
   const { lang, s } = useLang();
+  const c = s.channels;
   const [step, setStep] = useState<Step>("loading");
+  const [want, setWant] = useState<Kind | "both">(smsPending ? "email" : "sms");
   const [phone, setPhone] = useState("");
-  const [sentTo, setSentTo] = useState("");
+  const [emailInput, setEmailInput] = useState("");
+  const [pending, setPending] = useState<{ kind: Kind; value: string } | null>(null); // where the code went
+  const [contacts, setContacts] = useState<Contacts>({});
+  const [linking, setLinking] = useState(false); // adding or replacing a channel from the summary card
   const [code, setCode] = useState("");
   const [devCode, setDevCode] = useState<string | null>(null);
   const [known, setKnown] = useState<ColorInfo[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
-  const [email, setEmail] = useState("");
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [agreed, setAgreed] = useState(false);
   const [existing, setExisting] = useState<Subscriber | null>(null);
@@ -56,13 +65,13 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
   useEffect(() => {
     fetch("/api/me")
       .then(async (r) => {
-        if (r.status === 401) return setStep("phone");
+        if (r.status === 401) return setStep("channel");
         const d = await r.json();
-        setSentTo(d.phone);
+        setContacts(d.contacts ?? {});
         loadSubscriber(d.subscriber);
         setStep(!d.subscriber ? "colors" : hasAgreed(d.subscriber) ? "done" : "agree");
       })
-      .catch(() => setStep("phone"));
+      .catch(() => setStep("channel"));
     fetch("/api/known-colors")
       .then((r) => r.json())
       .then((d) => setKnown(d.colors ?? []))
@@ -78,7 +87,6 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
   function loadSubscriber(sub: Subscriber | null) {
     setExisting(sub);
     setSelected(sub?.colors ?? []);
-    setEmail(sub?.email ?? "");
     setPrefs(sub?.prefs ?? DEFAULT_PREFS);
   }
 
@@ -88,7 +96,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
     setPrefs(next);
     setStatus({ kind: "busy", msg: s.prefs.saving });
     try {
-      const { r, d } = await call("/api/me", "PUT", { colors: selected, lang, email, prefs: next });
+      const { r, d } = await call("/api/me", "PUT", { colors: selected, lang, prefs: next });
       if (r.status === 401) return signedOut();
       if (!r.ok) {
         setPrefs(prev);
@@ -113,21 +121,24 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
     return { r, d: await r.json().catch(() => ({})) };
   }
 
-  async function requestCode(e?: React.FormEvent) {
+  /** Send a code to the number or address being entered (or resend to the last one). */
+  async function requestCode(kind: Kind, e?: React.FormEvent) {
     e?.preventDefault();
     setStatus({ kind: "busy" });
     try {
-      const { r, d } = await call("/api/auth/send-code", "POST", { phone });
+      const { r, d } = await call("/api/auth/send-code", "POST", kind === "sms" ? { phone } : { email: emailInput });
       if (!r.ok) {
         const msg =
           d.error === "rate_limited" ? s.auth.tooMany
           : d.error === "sms_failed" ? s.auth.smsFailed
+          : d.error === "email_failed" ? c.emailFailed
           : d.error === "opted_out" ? s.auth.optedOut(prettyNumber(smsNumber))
           : d.error === "invalid_phone" ? s.notify.phoneLabel
+          : d.error === "invalid_email" ? c.invalidEmail
           : s.auth.wrongCode;
         return setStatus({ kind: "err", msg });
       }
-      setSentTo(d.phone);
+      setPending({ kind: d.kind, value: d.sentTo });
       setDevCode(d.devCode ?? null);
       setCode("");
       setStep("code");
@@ -139,20 +150,34 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
 
   async function verify(e?: React.FormEvent) {
     e?.preventDefault();
-    if (verifying.current) return;
+    if (verifying.current || !pending) return;
     verifying.current = true;
     setStatus({ kind: "busy" });
     try {
-      const { r, d } = await call("/api/auth/verify", "POST", { phone: sentTo, code });
+      const { r, d } = await call("/api/auth/verify", "POST", pending.kind === "sms" ? { phone: pending.value, code } : { email: pending.value, code });
       if (!r.ok) {
         const msg = d.error === "expired" ? s.auth.expired : d.error === "too_many" ? s.auth.tooMany : s.auth.wrongCode;
         setCode("");
         return setStatus({ kind: "err", msg });
       }
+      const got: Contacts = d.contacts ?? {};
+      setContacts(got);
       loadSubscriber(d.subscriber);
       setDevCode(null);
+      setPhone("");
+      setEmailInput("");
+      const ready = d.subscriber && hasAgreed(d.subscriber);
+      if (linking || ready) {
+        // Back on (or straight to) the summary card.
+        setLinking(false);
+        setStatus(linking ? { kind: "ok", msg: d.merged ? c.merged : c.linked } : { kind: "idle" });
+        return setStep(ready ? "done" : d.subscriber ? "agree" : "colors");
+      }
       setStatus({ kind: "idle" });
-      setStep(!d.subscriber ? "colors" : hasAgreed(d.subscriber) ? "done" : "agree");
+      // Signing up with both: the other one still needs its own code.
+      if (want === "both" && !got.email) return setStep("email");
+      if (want === "both" && !got.sms) return setStep("phone");
+      setStep(d.subscriber ? "agree" : "colors");
     } catch {
       setStatus({ kind: "err", msg: s.notify.network });
     } finally {
@@ -160,20 +185,42 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
     }
   }
 
-  async function save(nextStep: Step, extra?: { email?: string; agree?: boolean }) {
+  async function save(nextStep: Step, extra?: { agree?: boolean }) {
     setStatus({ kind: "busy" });
     const colors = [...selected];
     try {
-      const { r, d } = await call("/api/me", "PUT", { colors, lang, email: extra?.email ?? email, agree: extra?.agree === true });
+      const { r, d } = await call("/api/me", "PUT", { colors, lang, prefs, agree: extra?.agree === true });
       if (r.status === 401) return signedOut();
-      if (!r.ok) {
-        return setStatus({ kind: "err", msg: d.error === "invalid_email" ? s.notify.invalidEmail : s.notify.saveFailed });
-      }
+      if (!r.ok) return setStatus({ kind: "err", msg: s.notify.saveFailed });
       loadSubscriber(d.subscriber);
+      setContacts(d.contacts ?? contacts);
       setEditing(false);
       setAgreed(false);
       setStatus(nextStep === "done" ? { kind: "ok", msg: s.wizard.saved } : { kind: "idle" });
       setStep(nextStep);
+    } catch {
+      setStatus({ kind: "err", msg: s.notify.network });
+    }
+  }
+
+  /** From the summary card: add or replace a channel. It is proven with a code like at sign-up. */
+  function startLink(kind: Kind, prefill = "") {
+    setLinking(true);
+    setPhone("");
+    setEmailInput(kind === "email" ? prefill : "");
+    setStatus({ kind: "idle" });
+    setStep(kind === "sms" ? "phone" : "email");
+  }
+
+  async function removeChannel(kind: Kind) {
+    setStatus({ kind: "busy" });
+    try {
+      const { r, d } = await call(`/api/me/contact?kind=${kind}`, "DELETE");
+      if (r.status === 401) return signedOut();
+      if (!r.ok) return setStatus({ kind: "err", msg: d.error === "last_contact" ? c.lastContact : s.notify.removeFailed });
+      setContacts(d.contacts ?? {});
+      setExisting(d.subscriber);
+      setStatus({ kind: "ok", msg: c.removed });
     } catch {
       setStatus({ kind: "err", msg: s.notify.network });
     }
@@ -187,11 +234,16 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
       setTestCount((n) => n + 1);
       if (r.status === 401) return signedOut();
       if (!r.ok) {
-        const msg = d.error === "limit" ? s.prefs.testLimit : d.error === "sms_stopped" ? s.prefs.smsStopped(prettyNumber(smsNumber)) : s.prefs.testFailed;
+        const msg = d.error === "limit" ? c.testLimit : d.error === "sms_stopped" ? s.prefs.smsStopped(prettyNumber(smsNumber)) : c.testFailed;
         return setStatus({ kind: "err", msg });
       }
-      const msg = d.dryRun ? s.prefs.testDry : d.sms === "sent" ? s.prefs.testSent(sentTo) : d.push === "sent" ? s.push.testSent : s.prefs.testEmailOnly(email || sentTo);
-      setStatus({ kind: "ok", msg });
+      if (d.dryRun) return setStatus({ kind: "ok", msg: c.testDry });
+      const where = [
+        d.sms === "sent" && contacts.sms ? prettyPhone(contacts.sms) : null,
+        d.email === "sent" && contacts.email ? contacts.email : null,
+        d.push === "sent" ? c.thisDevice : null,
+      ].filter(Boolean);
+      setStatus({ kind: "ok", msg: c.testSent(where.join(", ")) });
     } catch {
       setStatus({ kind: "err", msg: s.notify.network });
     }
@@ -204,7 +256,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
       if (r.status === 401) return signedOut();
       if (!r.ok) return setStatus({ kind: "err", msg: s.notify.removeFailed });
       loadSubscriber(null);
-      setStatus({ kind: "ok", msg: s.notify.stopped });
+      setStatus({ kind: "ok", msg: c.stoppedAll });
       setStep("colors");
     } catch {
       setStatus({ kind: "err", msg: s.notify.network });
@@ -218,10 +270,14 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
 
   function signedOut() {
     loadSubscriber(null);
+    setContacts({});
+    setPending(null);
     setCode("");
     setPhone("");
+    setEmailInput("");
     setEditing(false);
-    setStep("phone");
+    setLinking(false);
+    setStep("channel");
     setStatus({ kind: "idle" });
   }
 
@@ -235,177 +291,246 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
       {status.msg}
     </p>
   ) : null;
+  const dateLocale = lang === "es" ? "es-US" : "en-US";
 
   if (step === "loading") return <div className="panel mx-auto h-72 max-w-lg animate-pulse rounded-lg" />;
 
-  // ---------- done: the summary card ----------
+  // ---------- done: the settings screen ----------
   if (step === "done") {
-    const chosen = selected.map((k) => known.find((c) => c.key === k) ?? null);
-    const names = chosen.map((c, i) => (c ? name(c) : selected[i])).join(" & ");
+    const st = s.settings;
+    const chosen = selected.map((k) => known.find((x) => x.key === k) ?? null);
+    const names = chosen.map((x, i) => (x ? name(x) : selected[i])).join(" & ");
     const hourLabel = prefs.earliestHour === 12 ? "12 pm" : `${prefs.earliestHour} am`;
     const testing = status.kind === "busy" && status.msg === s.prefs.testSending;
     return (
-      <div className="mx-auto max-w-lg">
-        <section className="panel rounded-lg p-6 sm:p-8">
+      <div className="mx-auto max-w-lg space-y-7">
+        <header>
           <div className="flex items-center gap-3">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-ok text-ink">
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M5 12.5l4.5 4.5L19 7.5" />
               </svg>
             </span>
-            <h1 className="text-2xl font-bold">{names ? s.wizard.doneTitleFor(names) : s.wizard.doneTitle}</h1>
+            <h1 className="text-3xl font-bold">{names ? s.wizard.doneTitleFor(names) : s.wizard.doneTitle}</h1>
           </div>
-          <p className="mt-3 text-sm text-fg-muted">
-            {prefs.mode === "daily" ? s.wizard.summaryDaily(hourLabel) : s.wizard.summaryMatch(hourLabel)}
+          <p className="mt-2 text-sm text-fg-muted">{prefs.mode === "daily" ? c.summaryDaily(hourLabel) : c.summaryMatch(hourLabel)}</p>
+        </header>
+
+        {existing?.emailStopped && contacts.email && (
+          <p className="rounded-md border border-amber-300/40 bg-amber-300/15 px-4 py-3 text-sm text-fg-muted">
+            {c.emailOff(contacts.email, existing.emailStopped.reason)}{" "}
+            <button type="button" className="link" disabled={busy} onClick={() => startLink("email", contacts.email)}>
+              {c.verifyAgain}
+            </button>
           </p>
+        )}
+        {existing?.smsStopped && contacts.sms && (
+          <p className="rounded-md border border-amber-300/40 bg-amber-300/15 px-4 py-3 text-sm text-fg-muted">{s.prefs.smsStopped(prettyNumber(smsNumber))}</p>
+        )}
 
-          <dl className="mt-5 divide-y divide-white/10 text-sm">
-            <Row label={s.wizard.number}>
-              <span className="font-semibold tracking-wide">{sentTo}</span>
-            </Row>
-            <Row label={s.wizard.colors} action={<button type="button" className="link" onClick={() => { setEditing(true); setStep("colors"); setStatus({ kind: "idle" }); }}>{s.wizard.editColors}</button>}>
-              <span className="flex flex-wrap gap-1.5">
-                {chosen.map((c, i) =>
-                  c ? (
-                    <span key={c.key} className="rounded-lg px-3 py-1 text-sm font-bold" style={{ background: c.hex, color: c.text }}>
-                      <span className="relative">{name(c)}</span>
-                    </span>
-                  ) : (
-                    <span key={selected[i]} className="rounded-lg bg-white/10 px-2.5 py-1 text-xs font-bold">{selected[i]}</span>
-                  ),
-                )}
-              </span>
-            </Row>
-            <Row label={s.wizard.email} action={<button type="button" className="link" onClick={() => { setEditing(true); setStep("email"); setStatus({ kind: "idle" }); }}>{s.wizard.editEmail}</button>}>
-              <span className={email ? "font-semibold break-all" : "text-fg-muted"}>{email || s.wizard.noEmail}</span>
-            </Row>
-          </dl>
-
-          <h2 className="mt-6 text-sm font-semibold text-fg-muted">{s.prefs.title}</h2>
-
-          <div className="mt-2 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label={s.prefs.whenTitle}>
-            {(["match", "daily"] as const).map((m) => {
-              const on = prefs.mode === m;
-              return (
-                <button
-                  key={m}
-                  type="button"
-                  role="radio"
-                  aria-checked={on}
-                  disabled={busy}
-                  onClick={() => !on && savePrefs({ ...prefs, mode: m })}
-                  className={`rounded-md px-3 py-2.5 text-left ring-1 transition ${on ? "bg-white text-ink ring-white" : "bg-white/5 ring-white/10 hover:bg-white/10"}`}
-                >
-                  <span className="block text-sm font-semibold">{m === "match" ? s.prefs.modeMatch : s.prefs.modeDaily}</span>
-                  <span className={`block text-xs ${on ? "text-ink/70" : "text-fg-muted"}`}>{m === "match" ? s.prefs.modeMatchHelp : s.prefs.modeDailyHelp}</span>
-                </button>
-              );
-            })}
+        <Group
+          title={st.colors(selected.length)}
+          action={
+            <button type="button" className="link" onClick={() => { setEditing(true); setStep("colors"); setStatus({ kind: "idle" }); }}>
+              {c.change}
+            </button>
+          }
+        >
+          <div className="flex flex-wrap gap-2 px-4 py-3.5">
+            {chosen.map((x, i) =>
+              x ? (
+                <span key={x.key} className="rounded px-3 py-1.5 text-sm font-bold" style={{ background: x.hex, color: x.text }}>
+                  {name(x)}
+                </span>
+              ) : (
+                <span key={selected[i]} className="rounded bg-white/10 px-3 py-1.5 text-sm font-bold">{selected[i]}</span>
+              ),
+            )}
           </div>
+        </Group>
 
-          <div className="mt-2 grid gap-2">
-            <label className="flex cursor-pointer items-center gap-3 rounded-md bg-white/5 px-3 py-2.5 ring-1 ring-white/10">
-              <span className="relative inline-flex h-6 w-10 shrink-0 items-center">
-                <input
-                  type="checkbox"
-                  className="peer sr-only"
-                  checked={prefs.includeOfficial}
-                  disabled={busy}
-                  onChange={(e) => savePrefs({ ...prefs, includeOfficial: e.target.checked })}
-                />
-                <span className="absolute inset-0 rounded-full bg-white/15 transition peer-checked:bg-ok/70 peer-focus-visible:ring-2 peer-focus-visible:ring-accent" />
-                <span className="absolute left-0.5 h-5 w-5 rounded-full bg-white transition peer-checked:translate-x-4" />
-              </span>
-              <span>
-                <span className="block text-sm font-semibold">{s.prefs.officialTitle}</span>
-                <span className="block text-xs text-fg-muted">{s.prefs.officialHelp}</span>
-              </span>
-            </label>
+        <Group title={st.where}>
+          <Line
+            label={c.textRow}
+            value={contacts.sms ? prettyPhone(contacts.sms) : c.notSet}
+            dim={!contacts.sms}
+          >
+            {!contacts.sms && smsPending ? (
+              <span className="text-xs text-fg-faint">{c.soon}</span>
+            ) : (
+              <ChannelActions has={!!contacts.sms} canRemove={!!contacts.email} labels={c} busy={busy} onSet={() => startLink("sms")} onRemove={() => removeChannel("sms")} />
+            )}
+          </Line>
+          <Line label={c.emailRow} value={contacts.email || c.notSet} dim={!contacts.email}>
+            <ChannelActions has={!!contacts.email} canRemove={!!contacts.sms} labels={c} busy={busy} onSet={() => startLink("email")} onRemove={() => removeChannel("email")} />
+          </Line>
+          <PushButton className="px-4 py-3" title={st.device} help={st.deviceHelp} />
+        </Group>
 
-            <label className="flex flex-col gap-2 rounded-md bg-white/5 px-3 py-2.5 ring-1 ring-white/10 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-              <span>
-                <span className="block text-sm font-semibold">{s.prefs.earliestTitle}</span>
-                <span className="block text-xs text-fg-muted">{s.prefs.earliestHelp}</span>
-              </span>
-              <select
-                className="field py-1.5 text-sm sm:w-auto"
-                value={prefs.earliestHour}
+        <Group title={st.when}>
+          <Line label={st.send}>
+            <div className="flex overflow-hidden rounded-md border border-line-strong text-sm" role="radiogroup" aria-label={c.whenTitle}>
+              {(["match", "daily"] as const).map((m) => {
+                const on = prefs.mode === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    disabled={busy}
+                    onClick={() => !on && savePrefs({ ...prefs, mode: m })}
+                    className={`px-3 py-1.5 font-medium ${on ? "bg-fg text-ink" : "text-fg-muted hover:text-fg"}`}
+                  >
+                    {m === "match" ? st.onlyMine : st.everyDay}
+                  </button>
+                );
+              })}
+            </div>
+          </Line>
+          <Line label={st.earliest} hint={st.earliestHelp}>
+            <select
+              className="field w-auto py-1.5 text-sm"
+              aria-label={st.earliest}
+              value={prefs.earliestHour}
+              disabled={busy}
+              onChange={(e) => savePrefs({ ...prefs, earliestHour: Number(e.target.value) })}
+            >
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
+                <option key={h} value={h}>
+                  {h === 12 ? s.prefs.noon : `${h} am`}
+                </option>
+              ))}
+            </select>
+          </Line>
+          <Line label={st.official} hint={st.officialHelp}>
+            <label className="relative inline-flex h-6 w-10 shrink-0 cursor-pointer items-center">
+              <input
+                type="checkbox"
+                className="peer sr-only"
+                aria-label={st.official}
+                checked={prefs.includeOfficial}
                 disabled={busy}
-                onChange={(e) => savePrefs({ ...prefs, earliestHour: Number(e.target.value) })}
-              >
-                {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
-                  <option key={h} value={h}>
-                    {h === 12 ? s.prefs.noon : `${h} am`}
-                  </option>
-                ))}
-              </select>
+                onChange={(e) => savePrefs({ ...prefs, includeOfficial: e.target.checked })}
+              />
+              <span className="absolute inset-0 rounded-full bg-white/15 transition peer-checked:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-fg" />
+              <span className="absolute left-0.5 h-5 w-5 rounded-full bg-white transition peer-checked:translate-x-4" />
             </label>
-          </div>
+          </Line>
+          <EndDateField
+            row
+            value={prefs.endDate}
+            disabled={busy}
+            labels={{ ...c, endTitle: st.optOut, endHelp: st.optOutHelp }}
+            locale={dateLocale}
+            onChange={(endDate) => savePrefs({ ...prefs, endDate })}
+          />
+        </Group>
 
-          <div className="mt-2">
-            <PushButton />
-          </div>
-
-          {existing?.emailStopped && !existing.email && (
-            <p className="mt-4 rounded-md border border-amber-300/40 bg-amber-300/15 px-4 py-3 text-sm text-fg-muted">
-              {s.prefs.emailStopped(existing.emailStopped.email, existing.emailStopped.reason)}
-            </p>
-          )}
-
-          {existing?.smsStopped && (
-            <p className="mt-4 rounded-md border border-amber-300/40 bg-amber-300/15 px-4 py-3 text-sm text-fg-muted">
-              {s.prefs.smsStopped(prettyNumber(smsNumber))}
-            </p>
-          )}
-
-          {statusLine}
-
-          <div className="mt-6 flex flex-wrap items-center gap-2">
-            <button type="button" onClick={sendTest} disabled={busy} className="btn-ghost text-sm">
-              {testing ? s.prefs.testSending : s.prefs.testButton}
+        <Group title={st.check}>
+          <div className="px-4 py-3.5">
+            <button type="button" onClick={sendTest} disabled={busy} className="btn-ghost w-full text-sm sm:w-auto">
+              {testing ? s.prefs.testSending : c.testButton}
             </button>
-            <button type="button" onClick={remove} disabled={busy} className="btn-ghost text-sm text-danger">
-              {s.notify.stop}
-            </button>
+            <p className="mt-2 text-xs text-fg-faint">{st.testHelp}</p>
+            <AlertHistory refreshKey={testCount} />
           </div>
-          <p className="mt-2 text-xs text-fg-faint">{s.prefs.testHelp}</p>
+        </Group>
 
-          <AlertHistory refreshKey={testCount} />
-
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-4 text-xs text-fg-faint">
-            <span>
-              {existing?.agreedAt
-                ? s.agree.agreedOn(new Date(existing.agreedAt).toLocaleDateString(lang === "es" ? "es-US" : "en-US", { year: "numeric", month: "long", day: "numeric" }))
-                : ""}
-            </span>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-fg-faint">
+          <span>
+            {existing?.agreedAt
+              ? s.agree.agreedOn(new Date(existing.agreedAt).toLocaleDateString(dateLocale, { year: "numeric", month: "long", day: "numeric" }))
+              : ""}
+          </span>
+          <span className="flex items-center gap-4">
             <button type="button" onClick={signOut} disabled={busy} className="link">
               {s.auth.signOut}
             </button>
-          </div>
-        </section>
+            <button type="button" onClick={remove} disabled={busy} className="font-medium text-danger underline underline-offset-4">
+              {s.notify.stop}
+            </button>
+          </span>
+        </div>
+
+        {/* Settings save as you change them; say so wherever the person is on the page. */}
+        {status.msg && (
+          <p
+            role="status"
+            className={`fixed inset-x-4 bottom-24 z-40 mx-auto max-w-sm rounded-md border bg-ink px-4 py-2.5 text-center text-sm md:bottom-6 ${
+              status.kind === "err" ? "border-danger text-danger" : "border-line-strong text-fg"
+            }`}
+          >
+            {status.msg}
+          </p>
+        )}
       </div>
     );
   }
 
   // ---------- wizard steps ----------
   const idx = STEP_INDEX[step];
-  const total = s.wizard.steps.length;
+  const total = c.steps.length;
+  const backFromContact = () => {
+    setStatus({ kind: "idle" });
+    if (linking) {
+      setLinking(false);
+      setStep("done");
+    } else setStep("channel");
+  };
 
   return (
     <div className="mx-auto max-w-lg">
-      <Progress steps={s.wizard.steps} current={idx} label={s.wizard.stepOf(idx + 1, total)} />
+      {!linking && <Progress steps={c.steps} current={idx} label={s.wizard.stepOf(idx + 1, total)} />}
 
       <section className="panel mt-4 rounded-lg p-6 sm:p-8">
+        {step === "channel" && (
+          <form onSubmit={(e) => { e.preventDefault(); setStatus({ kind: "idle" }); setStep(want === "email" ? "email" : "phone"); }}>
+            <h2 className="text-xl font-bold sm:text-2xl">{c.chooseTitle}</h2>
+            <p className="mt-2 text-sm text-fg-muted">{c.chooseHelp}</p>
+            <div className="mt-5 grid gap-2" role="radiogroup" aria-label={c.chooseTitle}>
+              {(["sms", "email", "both"] as const).map((k) => {
+                const on = want === k;
+                const off = smsPending && k !== "email";
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    disabled={off}
+                    onClick={() => setWant(k)}
+                    className={`flex items-center justify-between gap-3 rounded-md px-4 py-3 text-left ring-1 ${
+                      on ? "bg-white text-ink ring-white" : off ? "bg-white/5 opacity-50 ring-white/10" : "bg-white/5 ring-white/10 hover:bg-white/10"
+                    }`}
+                  >
+                    <span>
+                      <span className="block font-semibold">{k === "sms" ? c.text : k === "email" ? c.email : c.both}</span>
+                      <span className={`block text-xs ${on ? "text-ink/70" : "text-fg-muted"}`}>{k === "sms" ? c.textHelp : k === "email" ? c.emailHelp : c.bothHelp}</span>
+                    </span>
+                    {off && <span className="shrink-0 text-xs font-medium text-fg-muted">{c.soon}</span>}
+                  </button>
+                );
+              })}
+            </div>
+            {smsPending && <p className="mt-4 rounded-md border border-amber-300/40 bg-amber-300/15 px-4 py-3 text-sm text-fg-muted">{c.textSoon}</p>}
+            {statusLine}
+            <button type="submit" className="btn-primary mt-6 w-full">
+              {s.wizard.continue_}
+            </button>
+          </form>
+        )}
+
         {step === "phone" && (
-          <form onSubmit={requestCode}>
+          <form onSubmit={(e) => requestCode("sms", e)}>
             {smsPending && (
               <div className="mb-5 rounded-md border border-amber-300/40 bg-amber-300/15 p-4 text-sm">
                 <p className="font-semibold text-amber-200">{s.auth.pendingTitle}</p>
                 <p className="mt-1 text-fg-muted">{s.auth.pendingBody}</p>
               </div>
             )}
-            <h2 className="text-xl font-bold sm:text-2xl">{s.wizard.phoneTitle}</h2>
-            <p className="mt-2 text-sm text-fg-muted">{s.wizard.phoneHelp}</p>
+            <h2 className="text-xl font-bold sm:text-2xl">{linking ? c.addPhoneTitle : s.wizard.phoneTitle}</h2>
+            <p className="mt-2 text-sm text-fg-muted">{linking ? c.addHelp : s.wizard.phoneHelp}</p>
             <input
               type="tel"
               inputMode="tel"
@@ -423,14 +548,45 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
             <button type="submit" disabled={smsPending || busy || phone.replace(/\D/g, "").length < 10} className="btn-primary mt-6 w-full">
               {busy ? s.auth.sending : s.auth.sendCode}
             </button>
+            <div className="mt-4 text-sm">
+              <button type="button" className="link" onClick={backFromContact}>{s.wizard.back}</button>
+            </div>
           </form>
         )}
 
-        {step === "code" && (
+        {step === "email" && (
+          <form onSubmit={(e) => requestCode("email", e)}>
+            <h2 className="text-xl font-bold sm:text-2xl">{linking ? c.addEmailTitle : c.emailTitle}</h2>
+            <p className="mt-2 text-sm text-fg-muted">{linking ? c.addHelp : c.emailEnterHelp}</p>
+            <input
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              aria-label={c.emailLabel}
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
+              className="field mt-5 text-lg"
+              required
+              autoFocus
+            />
+            {statusLine}
+            <button type="submit" disabled={busy || !/^\S+@\S+\.\S+$/.test(emailInput.trim())} className="btn-primary mt-6 w-full">
+              {busy ? s.auth.sending : c.emailSend}
+            </button>
+            <div className="mt-4 text-sm">
+              <button type="button" className="link" onClick={backFromContact}>{s.wizard.back}</button>
+            </div>
+          </form>
+        )}
+
+        {step === "code" && pending && (
           <form onSubmit={verify}>
             <h2 className="text-xl font-bold sm:text-2xl">{s.wizard.codeTitle}</h2>
-            <p className="mt-2 text-sm text-fg-muted">{s.wizard.codeHelp(sentTo)}</p>
-            {devCode && <p className="mt-3 rounded-md bg-white/8 px-3 py-2 text-xs text-fg-muted">{s.auth.devCode(devCode)}</p>}
+            <p className="mt-2 text-sm text-fg-muted">
+              {pending.kind === "sms" ? s.wizard.codeHelp(prettyPhone(pending.value)) : c.codeHelpEmail(pending.value)}
+            </p>
+            {devCode && <p className="mt-3 rounded-md bg-white/8 px-3 py-2 text-xs text-fg-muted">{c.devCode(devCode)}</p>}
             <input
               type="text"
               inputMode="numeric"
@@ -449,86 +605,79 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
               {busy ? s.auth.verifying : s.auth.verify}
             </button>
             <div className="mt-4 flex justify-between text-sm">
-              <button type="button" className="link" onClick={() => { setStep("phone"); setStatus({ kind: "idle" }); }}>{s.wizard.back}</button>
-              <button type="button" className="link" onClick={() => requestCode()} disabled={busy}>{s.auth.resend}</button>
+              <button
+                type="button"
+                className="link"
+                onClick={() => {
+                  // put what they typed back so they can fix it
+                  if (pending.kind === "email") setEmailInput(pending.value);
+                  setStatus({ kind: "idle" });
+                  setStep(pending.kind === "sms" ? "phone" : "email");
+                }}
+              >
+                {s.wizard.back}
+              </button>
+              <button
+                type="button"
+                className="link"
+                disabled={busy}
+                onClick={async () => {
+                  setStatus({ kind: "busy" });
+                  const { r, d } = await call("/api/auth/send-code", "POST", pending.kind === "sms" ? { phone: pending.value } : { email: pending.value }).catch(() => ({ r: null, d: {} as { devCode?: string } }));
+                  if (!r?.ok) return setStatus({ kind: "err", msg: s.auth.tooMany });
+                  setDevCode(d.devCode ?? null);
+                  setCode("");
+                  setStatus({ kind: "idle" });
+                }}
+              >
+                {s.auth.resend}
+              </button>
             </div>
           </form>
         )}
 
         {step === "colors" && (
-          <form onSubmit={(e) => { e.preventDefault(); if (editing) void save("done"); else { setStatus({ kind: "idle" }); setStep("email"); } }}>
+          <form onSubmit={(e) => { e.preventDefault(); if (editing) void save("done"); else { setStatus({ kind: "idle" }); setStep("agree"); } }}>
             <h2 className="text-xl font-bold sm:text-2xl">{s.wizard.colorsTitle}</h2>
             <p className="mt-2 text-sm text-fg-muted">{s.wizard.colorsHelp}</p>
             <div className="mt-5 flex flex-wrap gap-2">
               {known.length === 0 && <span className="text-sm text-fg-faint">{s.notify.loading}</span>}
-              {known.map((c) => {
-                const on = selected.includes(c.key);
+              {known.map((k) => {
+                const on = selected.includes(k.key);
                 return (
                   <button
                     type="button"
-                    key={c.key}
-                    onClick={() => toggle(c.key)}
+                    key={k.key}
+                    onClick={() => toggle(k.key)}
                     aria-pressed={on}
                     className={`flex items-center gap-2 rounded-md py-1.5 pl-1.5 pr-3 text-sm font-medium ${
                       on ? "bg-white text-ink" : "bg-white/6 text-fg-muted ring-1 ring-white/10 hover:bg-white/10 hover:text-fg"
                     }`}
                   >
-                    <span className="h-5 w-5 rounded-sm ring-1 ring-black/20" style={{ background: c.hex }} />
-                    {name(c)}
+                    <span className="h-5 w-5 rounded-sm ring-1 ring-black/20" style={{ background: k.hex }} />
+                    {name(k)}
                   </button>
                 );
               })}
             </div>
+            {!editing && (
+              <div className="mt-6">
+                <EndDateField value={prefs.endDate} disabled={busy} labels={c} locale={dateLocale} onChange={(endDate) => setPrefs({ ...prefs, endDate })} />
+              </div>
+            )}
             {statusLine}
             <div className="mt-6 flex items-center justify-between gap-3">
               <span className="flex flex-wrap items-center gap-x-3 text-sm text-fg-muted">
                 {editing ? (
                   <button type="button" className="link" onClick={() => { setEditing(false); loadSubscriber(existing); setStep("done"); }}>{s.wizard.back}</button>
                 ) : (
-                  <button type="button" className="link" disabled={busy} onClick={signOut} title={s.auth.changeNumber}>{s.wizard.back}</button>
+                  <button type="button" className="link" disabled={busy} onClick={signOut} title={s.auth.signOut}>{s.wizard.back}</button>
                 )}
                 {!editing && <span>{s.wizard.selectedCount(selected.length)}</span>}
               </span>
               <button type="submit" disabled={busy || selected.length === 0} className="btn-primary">
                 {busy ? s.notify.saving : editing ? s.wizard.saveAndReturn : s.wizard.next}
               </button>
-            </div>
-          </form>
-        )}
-
-        {step === "email" && (
-          <form onSubmit={(e) => { e.preventDefault(); if (editing) void save("done"); else { setStatus({ kind: "idle" }); setStep("agree"); } }}>
-            <h2 className="text-xl font-bold sm:text-2xl">{s.wizard.emailTitle}</h2>
-            <p className="mt-2 text-sm text-fg-muted">{s.wizard.emailHelp}</p>
-            <input
-              type="email"
-              autoComplete="email"
-              placeholder="you@example.com"
-              aria-label={s.wizard.email}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="field mt-5 text-lg"
-              autoFocus
-            />
-            {statusLine}
-            <div className="mt-6 flex items-center justify-between gap-3">
-              <button
-                type="button"
-                className="link text-sm"
-                onClick={() => (editing ? (setEditing(false), loadSubscriber(existing), setStep("done")) : (setStatus({ kind: "idle" }), setStep("colors")))}
-              >
-                {s.wizard.back}
-              </button>
-              <div className="flex items-center gap-3">
-                {!editing && (
-                  <button type="button" className="link text-sm" disabled={busy} onClick={() => { setEmail(""); setStatus({ kind: "idle" }); setStep("agree"); }}>
-                    {s.wizard.skip}
-                  </button>
-                )}
-                <button type="submit" disabled={busy} className="btn-primary">
-                  {busy ? s.notify.saving : editing ? s.wizard.saveAndReturn : s.wizard.continue_}
-                </button>
-              </div>
             </div>
           </form>
         )}
@@ -552,7 +701,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
             </label>
             {statusLine}
             <div className="mt-6 flex items-center justify-between gap-3">
-              <button type="button" className="link text-sm" onClick={() => { setStatus({ kind: "idle" }); setStep("email"); }}>
+              <button type="button" className="link text-sm" onClick={() => { setStatus({ kind: "idle" }); setStep("colors"); }}>
                 {s.wizard.back}
               </button>
               <button type="submit" disabled={busy || !agreed} className="btn-primary">
@@ -562,6 +711,88 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
           </form>
         )}
       </section>
+    </div>
+  );
+}
+
+type ChannelLabels = { add: string; change: string; remove: string };
+
+function ChannelActions({ has, canRemove, labels, busy, onSet, onRemove }: { has: boolean; canRemove: boolean; labels: ChannelLabels; busy: boolean; onSet: () => void; onRemove: () => void }) {
+  return (
+    <span className="flex items-center gap-3">
+      <button type="button" className="link" disabled={busy} onClick={onSet}>
+        {has ? labels.change : labels.add}
+      </button>
+      {has && canRemove && (
+        <button type="button" className="link" disabled={busy} onClick={onRemove}>
+          {labels.remove}
+        </button>
+      )}
+    </span>
+  );
+}
+
+const END_MONTHS = [3, 6, 12, 18, 24] as const;
+const isoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+function monthsFromNow(n: number): string {
+  const d = new Date();
+  const day = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + n);
+  d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); // Jan 31 + 1 month = Feb 28
+  return isoDate(d);
+}
+
+type EndLabels = { endTitle: string; endHelp: string; endNever: string; endMonths: (n: number) => string; endPick: string; endDateLabel: string; endsOn: (d: string) => string };
+
+/** "Opt me out automatically": never, a few preset spans from today, or a chosen date. */
+function EndDateField({ value, disabled, labels, locale, onChange, row = false }: { value?: string; disabled: boolean; labels: EndLabels; locale: string; onChange: (endDate: string | undefined) => void; row?: boolean }) {
+  // A saved date shows as "specific date"; a preset stays selected only until the page reloads.
+  const [choice, setChoice] = useState<string>(value ? "pick" : "never");
+  const shown = !value ? "never" : choice === "never" ? "pick" : choice;
+  const pretty = value ? new Date(`${value}T12:00:00`).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" }) : "";
+  return (
+    <div className={row ? "px-4 py-3" : "rounded-md bg-white/5 px-3 py-2.5 ring-1 ring-white/10"}>
+      <label className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <span>
+          <span className="block text-sm font-semibold">{labels.endTitle}</span>
+          <span className="block text-xs text-fg-muted">{labels.endHelp}</span>
+        </span>
+        <select
+          className="field py-1.5 text-sm sm:w-auto"
+          value={shown}
+          disabled={disabled}
+          onChange={(e) => {
+            const v = e.target.value;
+            setChoice(v);
+            if (v === "never") onChange(undefined);
+            else if (v === "pick") onChange(value ?? monthsFromNow(12));
+            else onChange(monthsFromNow(Number(v)));
+          }}
+        >
+          <option value="never">{labels.endNever}</option>
+          {END_MONTHS.map((n) => (
+            <option key={n} value={String(n)}>
+              {labels.endMonths(n)}
+            </option>
+          ))}
+          <option value="pick">{labels.endPick}</option>
+        </select>
+      </label>
+      {shown === "pick" && (
+        // Kept only as wide as the date itself: the browser hangs its calendar off the box's left edge,
+        // so a full-width box put the calendar far from the icon.
+        <input
+          type="date"
+          className={`field mt-2 block w-auto py-1.5 text-sm ${row ? "sm:ml-auto" : ""}`}
+          aria-label={labels.endDateLabel}
+          value={value ?? ""}
+          min={isoDate(new Date())}
+          disabled={disabled}
+          onChange={(e) => e.target.value && onChange(e.target.value)}
+        />
+      )}
+      {value && <p className={`mt-2 text-xs text-fg-muted ${row ? "sm:text-right" : ""}`}>{labels.endsOn(pretty)}</p>}
     </div>
   );
 }
@@ -587,12 +818,29 @@ function Progress({ steps, current, label }: { steps: readonly string[]; current
   );
 }
 
-function Row({ label, action, children }: { label: string; action?: React.ReactNode; children: React.ReactNode }) {
+/** A titled block of settings: a small heading, then rows separated by hairlines. */
+function Group({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[88px_1fr_auto] items-center gap-3 py-3.5">
-      <dt className="text-sm text-fg-muted">{label}</dt>
-      <dd className="text-base">{children}</dd>
-      <dd className="text-xs">{action}</dd>
+    <section>
+      <div className="mb-2 flex items-baseline justify-between gap-3 px-1">
+        <h2 className="font-sans text-xs font-semibold uppercase tracking-[0.08em] text-fg-faint">{title}</h2>
+        {action && <span className="text-xs">{action}</span>}
+      </div>
+      <div className="panel divide-y divide-line rounded-lg">{children}</div>
+    </section>
+  );
+}
+
+/** One setting: what it is on the left, its value or control on the right. */
+function Line({ label, hint, value, dim, children }: { label: string; hint?: string; value?: string; dim?: boolean; children?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-4 px-4 py-3">
+      <span className="min-w-0">
+        <span className="block text-sm font-semibold">{label}</span>
+        {value !== undefined && <span className={`block break-all text-sm ${dim ? "text-fg-faint" : "text-fg-muted"}`}>{value}</span>}
+        {hint && <span className="block text-xs text-fg-muted">{hint}</span>}
+      </span>
+      <span className="shrink-0 text-xs">{children}</span>
     </div>
   );
 }

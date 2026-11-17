@@ -1,28 +1,35 @@
 import type { NextRequest } from "next/server";
-import { currentPhone } from "@/lib/auth";
-import { deleteSubscriber, getSubscriber, upsertSubscriber, AGREEMENT_VERSION, type AlertPrefs } from "@/lib/dynamo";
+import { currentSession } from "@/lib/auth";
+import { contactsOf, deleteSubscriber, getSubscriber, upsertSubscriber, AGREEMENT_VERSION, type AlertPrefs } from "@/lib/dynamo";
 import { normalizeColorKey } from "@/lib/colors";
 import { isLang } from "@/lib/i18n";
-import { isEmail } from "@/lib/email";
 import { deleteAlerts } from "@/lib/alertlog";
+import { todayIsoMountain } from "@/lib/dates";
 
 /** The signed-in person's alert. All three methods need the session cookie. */
 
 const unauthorized = () => Response.json({ error: "unauthorized" }, { status: 401 });
 
-/** GET -> { phone, subscriber | null } */
+/** GET -> { id, contacts, subscriber | null } */
 export async function GET() {
-  const phone = await currentPhone();
-  if (!phone) return unauthorized();
-  return Response.json({ phone, subscriber: await getSubscriber(phone), agreementVersion: AGREEMENT_VERSION });
+  const session = await currentSession();
+  if (!session) return unauthorized();
+  const subscriber = await getSubscriber(session.id);
+  return Response.json({
+    id: session.id,
+    // before the alert exists, the contacts are the ones proven in this browser
+    contacts: subscriber ? contactsOf(subscriber) : session.contacts,
+    subscriber,
+    agreementVersion: AGREEMENT_VERSION,
+  });
 }
 
-/** PUT { colors: string[], lang?: "en"|"es", email?: string } -> create or update the alert */
+/** PUT { colors: string[], lang?: "en"|"es", prefs?, agree? } -> create or update the alert */
 export async function PUT(req: NextRequest) {
-  const phone = await currentPhone();
-  if (!phone) return unauthorized();
+  const session = await currentSession();
+  if (!session) return unauthorized();
 
-  let body: { colors?: unknown; lang?: unknown; email?: unknown; prefs?: unknown; agree?: unknown };
+  let body: { colors?: unknown; lang?: unknown; prefs?: unknown; agree?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -40,33 +47,32 @@ export async function PUT(req: NextRequest) {
     : [];
   if (colors.length === 0) return Response.json({ error: "no_colors" }, { status: 400 });
   if (colors.length > 10) return Response.json({ error: "too_many_colors" }, { status: 400 });
-  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-  if (email && !isEmail(email)) return Response.json({ error: "invalid_email" }, { status: 400 });
 
   const prefs = parsePrefs(body.prefs);
   if (body.prefs !== undefined && !prefs) return Response.json({ error: "invalid_prefs" }, { status: 400 });
 
-  // A brand-new alert can only be created together with the agreement.
+  // A brand-new alert can only be created together with the agreement, and needs somewhere to send to.
   const agree = body.agree === true;
-  const existing = await getSubscriber(phone);
+  const existing = await getSubscriber(session.id);
   if (!existing && !agree) return Response.json({ error: "agreement_required" }, { status: 400 });
+  if (!existing && !session.contacts.sms && !session.contacts.email) return Response.json({ error: "no_contact" }, { status: 400 });
 
   const subscriber = await upsertSubscriber({
-    phone,
+    phone: session.id,
     colors,
-    email, // "" clears it
     lang: isLang(body.lang) ? body.lang : undefined,
     prefs: prefs ?? undefined,
     agree,
+    contacts: session.contacts,
   });
-  return Response.json({ phone, subscriber });
+  return Response.json({ id: session.id, contacts: contactsOf(subscriber), subscriber });
 }
 
-/** DELETE -> stop alerts and forget the number */
+/** DELETE -> stop alerts and forget the number and email */
 export async function DELETE() {
-  const phone = await currentPhone();
-  if (!phone) return unauthorized();
-  await Promise.all([deleteSubscriber(phone), deleteAlerts(phone)]);
+  const session = await currentSession();
+  if (!session) return unauthorized();
+  await Promise.all([deleteSubscriber(session.id), deleteAlerts(session.id)]);
   return Response.json({ ok: true });
 }
 
@@ -76,5 +82,15 @@ function parsePrefs(v: unknown): AlertPrefs | null {
   const mode = o.mode === "daily" ? "daily" : o.mode === "match" ? "match" : null;
   const earliestHour = Number(o.earliestHour);
   if (!mode || !Number.isInteger(earliestHour) || earliestHour < 1 || earliestHour > 12) return null;
-  return { mode, includeOfficial: o.includeOfficial === true, earliestHour };
+  // Optional auto-stop date: a real calendar day, today or later, at most five years out.
+  let endDate: string | undefined;
+  if (o.endDate !== undefined && o.endDate !== null && o.endDate !== "") {
+    if (typeof o.endDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(o.endDate)) return null;
+    const d = new Date(`${o.endDate}T12:00:00Z`);
+    const today = todayIsoMountain();
+    const max = `${Number(today.slice(0, 4)) + 5}${today.slice(4)}`;
+    if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== o.endDate || o.endDate < today || o.endDate > max) return null;
+    endDate = o.endDate;
+  }
+  return { mode, includeOfficial: o.includeOfficial === true, earliestHour, endDate };
 }

@@ -60,7 +60,7 @@ export async function sendPush(
 ): Promise<{ sent: number; failed: number; dryRun: boolean }> {
   await ready();
   if (!subs?.length) return { sent: 0, failed: 0, dryRun: false };
-  if (env.smsDryRun) {
+  if (env.pushDryRun) {
     console.log(`[PUSH_DRY_RUN] to ${phone} (${subs.length} devices): ${payload.title} - ${payload.body}`);
     return { sent: subs.length, failed: 0, dryRun: true };
   }

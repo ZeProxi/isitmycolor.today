@@ -113,9 +113,19 @@ export const env = {
   get vapidSubject() {
     return read("VAPID_SUBJECT");
   },
-  /** "true" logs SMS/email instead of sending (handy in dev). */
+  /** "true" logs texts, push and (unless EMAIL_DRY_RUN says otherwise) email instead of sending. Handy in dev. */
   get smsDryRun() {
     return read("SMS_DRY_RUN") === "true";
+  },
+  /** Device notifications' own switch, like EMAIL_DRY_RUN. Follows SMS_DRY_RUN when unset. */
+  get pushDryRun() {
+    const v = read("PUSH_DRY_RUN");
+    return v ? v === "true" : read("SMS_DRY_RUN") === "true";
+  },
+  /** Email's own switch, for sending real email while texts stay off. Follows SMS_DRY_RUN when unset. */
+  get emailDryRun() {
+    const v = read("EMAIL_DRY_RUN");
+    return v ? v === "true" : read("SMS_DRY_RUN") === "true";
   },
 };
 

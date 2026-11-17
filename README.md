@@ -13,11 +13,13 @@ page or calling the hotline at (385) 268-5002.
   clinic locations with open/closed status, and the disclaimer.
 - **History** – every day the scraper sees is saved to DynamoDB (parsed colors plus a copy of the raw
   page HTML) and shown in a month calendar.
-- **Alerts** – a four-step sign-up: phone number, texted 6-digit code (no password, no Cognito), your
-  colors, optional email. Returning people enter the same number and land on their alert. Settings:
-  text only on your color days or every day either way, include a link to (text) / rendering of (email)
-  the official page as captured that morning, and an earliest text time (1 am to 12 pm Mountain Time,
-  default 6 am). One text per day max.
+- **Alerts** – sign-up asks how to reach you: text, email, or both. Each one is proven with a 6-digit code
+  (no password, no Cognito) before it is used, and either one signs you back in. Then: your colors and the
+  agreement. Settings: text/email/this-device channels (add, change or remove any, keeping at least one),
+  only on your color days or every day, a link to the official page as captured that morning, an earliest
+  time (1 am to 12 pm Mountain Time, default 6 am), and an optional date after which the alert and all its
+  records are deleted automatically. One alert per day max. Adding a number or email that already has its
+  own alert merges the two once its code is entered.
 - **Day pages** – `/day/YYYY-MM-DD` shows an **official screenshot** (a headless-Chrome PNG taken by the
   `lambda/screenshot` function and stored in a private S3 bucket) plus a frozen copy of the saved HTML.
   Text-message links point here. The Lambda runs on a schedule (00:30 and 06:00 Mountain) and is also
@@ -53,6 +55,9 @@ npm run dev                        # http://localhost:3000
 
 With `SMS_DRY_RUN=true` (the default in `.env.example`) nothing is actually sent: texts and emails are
 printed to the dev server console, and the sign-in code is shown on the page.
+
+`EMAIL_DRY_RUN` and `PUSH_DRY_RUN` override that for email and device notifications, so you can send real
+email locally (`EMAIL_DRY_RUN=false` with `RESEND_API_KEY` and `EMAIL_FROM`) while texts stay off.
 
 Useful scripts:
 
@@ -191,7 +196,9 @@ MIT, see `LICENSE`. The owner's About section and portraits are not part of the 
 
 ## Data
 
-- `wasatch-colors-subscribers` (pk `phone`): `{ phone, colors[], lang, email?, prefs, active, lastNotifiedDate }`.
-  One-time sign-in codes live in the same table under `otp#<phone>`.
+- `wasatch-colors-subscribers` (pk `phone`): `{ phone, sms?, email?, emailVerified?, colors[], lang, prefs, active, lastNotifiedDate }`.
+  `phone` is the account id, not necessarily a number: an E.164 phone, `email:<address>`, or `acct:<uuid>`.
+  The contacts are `sms` and `email`; read them with `smsOf()` / `emailOf()` in `src/lib/dynamo.ts`.
+  One-time codes live in the same table under `otp#<phone or email>`.
 - `wasatch-colors-history` (pk `pk`, sk `sk`): `DAY#date` records `{ snapshot, rawHtml, firstSeenAt }`
   and a `META / known-colors` set.

@@ -28,7 +28,7 @@ export async function sendEmail(
 ): Promise<{ messageId?: string; dryRun: boolean; skipped?: string }> {
   await ready();
   if (!env.emailFrom) return { dryRun: false, skipped: "EMAIL_FROM not set" };
-  if (env.smsDryRun) {
+  if (env.emailDryRun) {
     console.log(`[EMAIL_DRY_RUN] to ${to}: ${subject}\n${text}`);
     return { dryRun: true };
   }
