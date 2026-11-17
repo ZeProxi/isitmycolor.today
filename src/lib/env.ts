@@ -54,6 +54,13 @@ export const env = {
   get unreadableNoticeHour() {
     return Number(read("UNREADABLE_NOTICE_HOUR", "8"));
   },
+  /** Verified email addresses allowed to see the owner-only pages (Analytics, per-color statistics). */
+  get adminEmails(): string[] {
+    return read("ADMIN_EMAILS")
+      .split(",")
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean);
+  },
   /** Public URL of the deployed site, no trailing slash. Used for links in texts/emails. */
   get siteUrl() {
     return read("SITE_URL").replace(/\/$/, "");

@@ -143,6 +143,13 @@ says texts aren't available yet.
   `npx web-push generate-vapid-keys`.
 - `/flyer` is a printable one-page handout with a QR code to sign-up (Ctrl+P).
 
+## Owner-only pages
+
+`/analytics` and the statistics on each color's page (how often it is listed, weekdays, gaps, every date) are
+shown only to a signed-in person whose verified email is in `ADMIN_EMAILS` (comma-separated, in SSM). Everyone
+else gets a not-found page for Analytics and a plain color page. Patterns in past calls are kept off the
+public site on purpose.
+
 ## Abuse and cost controls
 
 Every public endpoint is either cached at the CDN (`/api/colors`, `/api/history*`, `/api/known-colors`)

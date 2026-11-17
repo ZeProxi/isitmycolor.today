@@ -10,6 +10,7 @@ import { t } from "@/lib/i18n";
 import { KNOWN_COLORS, colorInfo, normalizeColorKey, textOn } from "@/lib/colors";
 import { withSeenColors } from "@/lib/seen-colors";
 import { myColors } from "@/lib/mine";
+import { isAdmin } from "@/lib/admin";
 import { PageSkeleton } from "@/components/PageSkeleton";
 
 /** /color/red: one color's own page, in that color, with what the history says about it. */
@@ -40,7 +41,7 @@ async function ColorContent({ params }: { params: PageProps<"/color/[key]">["par
   const s = dict.color;
   const today = todayIsoMountain();
 
-  const [seen, a, mine] = await Promise.all([withSeenColors(), getAnalytics(today, { withHtml: false }), myColors()]);
+  const [seen, a, mine, admin] = await Promise.all([withSeenColors(), getAnalytics(today, { withHtml: false }), myColors(), isAdmin()]);
   const stat = a.colors.find((c) => c.key === key);
   // Only colors the hotline uses (built in, learned from the page, or on record) get a page.
   if (!stat && !KNOWN_COLORS.some((c) => c.key === key) && !seen.some((c) => c.key === key)) notFound();
@@ -89,6 +90,18 @@ async function ColorContent({ params }: { params: PageProps<"/color/[key]">["par
 
       {!stat ? (
         <p className="panel rounded-md px-4 py-3 text-sm text-fg-muted">{s.never}</p>
+      ) : !admin ? (
+        // Everyone gets the plain facts. How often, which weekdays and the gaps between are the owner's view only.
+        <section className="flex flex-wrap items-center gap-3">
+          {stat.lastDate && (
+            <Link href={`/day/${stat.lastDate}`} className="btn-ghost text-sm first-letter:uppercase">
+              {s.last}: {longDateMountain(stat.lastDate, lang)}
+            </Link>
+          )}
+          <Link href="/history" className="btn-ghost text-sm">
+            {dict.home.ctaHistory}
+          </Link>
+        </section>
       ) : (
         <>
           <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">

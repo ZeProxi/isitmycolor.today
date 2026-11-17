@@ -1,7 +1,9 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { connection } from "next/server";
+import { isAdmin } from "@/lib/admin";
 import { getAnalytics } from "@/lib/analytics";
 import { todayIsoMountain, longDateMountain } from "@/lib/dates";
 import { getLang } from "@/lib/lang-server";
@@ -25,6 +27,8 @@ const pct = (n: number) => `${Math.round(n * 100)}%`;
 
 async function AnalyticsContent({ searchParams }: { searchParams: PageProps<"/analytics">["searchParams"] }) {
   await connection();
+  // The owner's view only. To everyone else this page does not exist.
+  if (!(await isAdmin())) notFound();
   const sp = await searchParams;
   const page = Math.max(1, Number(typeof sp.page === "string" ? sp.page : 1) || 1);
   const lang = await getLang();
