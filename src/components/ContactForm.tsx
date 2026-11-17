@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLang } from "./LangProvider";
 
 export function ContactForm() {
@@ -11,6 +11,13 @@ export function ContactForm() {
   const [website, setWebsite] = useState(""); // honeypot: humans never see it
   const [state, setState] = useState<"idle" | "busy" | "sent" | "error">("idle");
   const [err, setErr] = useState("");
+  const form = useRef<HTMLFormElement>(null);
+
+  // Arriving from "Contact the developer" (/about#contact): this form loads after the browser has
+  // already tried to jump to it, so bring it into view once it exists.
+  useEffect(() => {
+    if (location.hash === "#contact") form.current?.scrollIntoView({ block: "start" });
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -40,7 +47,7 @@ export function ContactForm() {
   }
 
   return (
-    <form onSubmit={submit} className="panel rounded-lg p-5 sm:p-6">
+    <form id="contact" ref={form} onSubmit={submit} className="panel scroll-mt-20 rounded-lg p-5 sm:p-6">
       <h2 className="text-2xl font-bold">{s.contact.title}</h2>
       <p className="mt-1 text-sm text-fg-muted">{s.contact.help}</p>
       <textarea

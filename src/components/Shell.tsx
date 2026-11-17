@@ -4,13 +4,13 @@ import { getLang } from "@/lib/lang-server";
 import { t } from "@/lib/i18n";
 import { LangProvider, LangToggle } from "./LangProvider";
 import { NavTabs } from "./NavTabs";
-import { HiddenShortcuts } from "./HiddenShortcuts";
 import { LogoMark } from "./LogoMark";
 import { myColors } from "@/lib/mine";
 import { env } from "@/lib/env";
 import { ready } from "@/lib/config";
 import { colorInfo } from "@/lib/colors";
 import { withSeenColors } from "@/lib/seen-colors";
+import { isAdmin } from "@/lib/admin";
 
 /** Request-time chrome: reads the language cookie and wraps the page in the header/footer/tab bar. */
 export async function Shell({ children }: { children: React.ReactNode }) {
@@ -18,6 +18,7 @@ export async function Shell({ children }: { children: React.ReactNode }) {
   const lang = await getLang();
   const s = t(lang);
   const mine = await myColors();
+  const admin = await isAdmin(); // the owner gets an Analytics entry in the navigation; nobody else knows it exists
   await ready();
   await withSeenColors();
   const sunset = env.siteSunset;
@@ -34,7 +35,6 @@ export async function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <LangProvider lang={lang}>
-      <HiddenShortcuts />
       {(sunset || notice) && (
         <div className={`relative z-30 px-4 py-2.5 text-center text-sm font-medium ${sunset ? "bg-danger text-ink" : "bg-amber-300 text-ink"}`}>
           {sunset ? s.banner.sunset : notice}{" "}
@@ -51,7 +51,7 @@ export async function Shell({ children }: { children: React.ReactNode }) {
             <LogoMark />
             {brand}
           </Link>
-          <NavTabs placement="top" />
+          <NavTabs placement="top" admin={admin} />
           <div className="flex items-center gap-4">
             <a
               href="https://github.com/ZeProxi/isitmycolor.today"
@@ -123,7 +123,7 @@ export async function Shell({ children }: { children: React.ReactNode }) {
         </div>
       </footer>
 
-      <NavTabs placement="bottom" />
+      <NavTabs placement="bottom" admin={admin} contact={!!env.contactEmail} />
     </LangProvider>
   );
 }

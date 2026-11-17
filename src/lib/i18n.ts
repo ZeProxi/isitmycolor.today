@@ -9,7 +9,7 @@ export function isLang(v: unknown): v is Lang {
 const en = {
   brand: "Wasatch UA Alerts",
   unofficial: "unofficial",
-  nav: { menu: "Menu", closeMenu: "Close menu", today: "Today", history: "History", alerts: "Alerts", official: "Official", resources: "Resources", about: "About", analytics: "Analytics", getTexts: "Get texts" },
+  nav: { menu: "Menu", closeMenu: "Close menu", contact: "Contact the developer", today: "Today", history: "History", alerts: "Alerts", official: "Official", resources: "Resources", about: "About", analytics: "Analytics", getTexts: "Get texts" },
   footer: {
     lead: "Not affiliated with Wasatch Behavioral Health.",
     body: "A community-built, open-source tool, provided as-is. It can be wrong or late, so always confirm with the official source.",
@@ -595,7 +595,7 @@ export type Dict = typeof en;
 const es: Dict = {
   brand: "Alertas UA Wasatch",
   unofficial: "no oficial",
-  nav: { menu: "Menú", closeMenu: "Cerrar menú", today: "Hoy", history: "Historial", alerts: "Alertas", official: "Oficial", resources: "Recursos", about: "Acerca de", analytics: "Analítica", getTexts: "Recibir textos" },
+  nav: { menu: "Menú", closeMenu: "Cerrar menú", contact: "Contactar al desarrollador", today: "Hoy", history: "Historial", alerts: "Alertas", official: "Oficial", resources: "Recursos", about: "Acerca de", analytics: "Analítica", getTexts: "Recibir textos" },
   footer: {
     lead: "No está afiliado a Wasatch Behavioral Health.",
     body: "Herramienta comunitaria de código abierto, tal cual. Puede fallar o atrasarse, así que confirma siempre con la fuente oficial.",

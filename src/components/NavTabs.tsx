@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useLang } from "./LangProvider";
-import { useAnalyticsTab } from "./HiddenShortcuts";
 
 const TABS = [
   { href: "/", key: "today", icon: SunIcon },
@@ -15,17 +14,20 @@ const TABS = [
   { href: "/about", key: "about", icon: InfoIcon },
 ] as const;
 
-/** Revealed with Ctrl+Alt+V; see HiddenShortcuts. */
+/** Owner only: added when the server says the signed-in person is the site owner (see lib/admin.ts). */
 const ANALYTICS = { href: "/analytics", key: "analytics", icon: ChartIcon } as const;
 
-export function NavTabs({ placement }: { placement: "top" | "bottom" }) {
+export function NavTabs({ placement, admin = false, contact = false }: { placement: "top" | "bottom"; admin?: boolean; contact?: boolean }) {
   const pathname = usePathname();
   const { s } = useLang();
-  const showAnalytics = useAnalyticsTab();
-  const tabs = showAnalytics ? [...TABS, ANALYTICS] : [...TABS];
+  const tabs = admin ? [...TABS, ANALYTICS] : [...TABS];
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
-  if (placement === "bottom") return <PhoneBar pathname={pathname} menu={tabs.filter((t) => !PHONE_BAR.some((k) => k === t.key))} />;
+  if (placement === "bottom") {
+    // The phone menu also carries a way to reach the person who runs the site (the form on the About page).
+    const menu: Tab[] = [...tabs.filter((t) => !PHONE_BAR.some((k) => k === t.key)), ...(contact ? [CONTACT] : [])];
+    return <PhoneBar pathname={pathname} menu={menu} />;
+  }
 
   return (
     <nav aria-label="Primary" className="hidden items-center gap-5 md:flex">
@@ -51,7 +53,9 @@ export function NavTabs({ placement }: { placement: "top" | "bottom" }) {
 /** What sits on the phone's bottom bar itself; everything else is one tap away under Menu. */
 const PHONE_BAR = ["today", "alerts"] as const;
 
-type Tab = { href: string; key: "today" | "alerts" | "history" | "official" | "resources" | "about" | "analytics"; icon: (p: { className?: string }) => React.ReactNode };
+type Tab = { href: string; key: "today" | "alerts" | "history" | "official" | "resources" | "about" | "analytics" | "contact"; icon: (p: { className?: string }) => React.ReactNode };
+
+const CONTACT: Tab = { href: "/about#contact", key: "contact", icon: MailIcon };
 
 /**
  * Phones: Today, Alerts and Menu. Menu opens a sheet above the bar with the
@@ -61,7 +65,7 @@ function PhoneBar({ pathname, menu }: { pathname: string; menu: readonly Tab[] }
   const { s } = useLang();
   const [open, setOpen] = useState(false);
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
-  const inMenu = menu.some((t) => isActive(t.href));
+  const inMenu = menu.some((t) => !t.href.includes("#") && isActive(t.href));
 
   useEffect(() => {
     if (!open) return;
@@ -80,7 +84,7 @@ function PhoneBar({ pathname, menu }: { pathname: string; menu: readonly Tab[] }
         {open && (
           <ul id="phone-menu" className="absolute inset-x-0 bottom-full border-t border-line bg-ink-2 px-2 py-2">
             {menu.map(({ href, key, icon: Icon }) => {
-              const on = isActive(href);
+              const on = !href.includes("#") && isActive(href);
               return (
                 <li key={href}>
                   <Link
@@ -114,6 +118,15 @@ function PhoneBar({ pathname, menu }: { pathname: string; menu: readonly Tab[] }
         </div>
       </nav>
     </div>
+  );
+}
+
+function MailIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3.5" y="5.5" width="17" height="13" rx="2" />
+      <path d="M4 7l8 6 8-6" />
+    </svg>
   );
 }
 
