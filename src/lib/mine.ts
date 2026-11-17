@@ -13,15 +13,16 @@ export async function myColors(): Promise<string[]> {
 }
 
 /**
- * The same, plus the last day this person saw the once-a-day banner, from the same single read.
+ * The same, plus the last day this person saw the once-a-day banner and the date they chose for their
+ * alerts to stop (if any), from the same single read.
  * Only reads: the banner is marked as seen by the browser once it is actually on screen.
  */
-export async function mineToday(): Promise<{ colors: string[]; momentDate?: string }> {
+export async function mineToday(): Promise<{ colors: string[]; momentDate?: string; endDate?: string }> {
   try {
     const phone = await currentAccount();
     if (!phone) return { colors: [] };
     const sub = await getSubscriber(phone);
-    return { colors: sub?.colors ?? [], momentDate: (sub as { momentDate?: string } | undefined)?.momentDate };
+    return { colors: sub?.colors ?? [], momentDate: (sub as { momentDate?: string } | undefined)?.momentDate, endDate: sub?.prefs?.endDate };
   } catch {
     return { colors: [] };
   }

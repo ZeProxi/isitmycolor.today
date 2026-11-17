@@ -7,6 +7,7 @@ import { colorInfo, everyoneCalled, matchedColors } from "@/lib/colors";
 import { getLang } from "@/lib/lang-server";
 import { t } from "@/lib/i18n";
 import { mineToday } from "@/lib/mine";
+import { isAdmin } from "@/lib/admin";
 import { DayMoment } from "./DayMoment";
 
 function cap(w: string) {
@@ -55,6 +56,12 @@ export async function TodayColors() {
   const firstMine = data.colors.find((c) => matched.includes(c.key)) ?? (everyone && matched.length ? data.colors[0] : undefined);
   const momentHex = firstMine ? (firstMine.siteBackground ?? colorInfo(firstMine.key, firstMine).hex) : "#edb058";
 
+  // A countdown for people who chose a date for their alerts to stop: whole days from today (in Utah) to that
+  // date. Nothing is shown without a date, or once it has passed.
+  const end = me.endDate && /^\d{4}-\d{2}-\d{2}$/.test(me.endDate) ? me.endDate : null;
+  const gap = end ? Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000) : -1;
+  const daysLeft = mine.length > 0 && gap >= 0 ? gap : null;
+
   // Whether today's banner is still to come is known here, on the server, so it arrives with the page and
   // covers it from the start: the colors are never shown first and then covered a moment later.
   const moment = mine.length > 0 && !stale && n > 0 && data.layout !== "fallback";
@@ -63,10 +70,14 @@ export async function TodayColors() {
   const rehearsal = process.env.NODE_ENV !== "production" && (await cookies()).has("moment-test");
   const pending = moment && (me.momentDate !== today || rehearsal);
 
+  // The ?moment= previews show a banner that may not be true today ("not your color" on a day it is), so a
+  // link carrying one must do nothing for anyone but the site's owner. Development copies can always use them.
+  const preview = moment && (process.env.NODE_ENV !== "production" || (await isAdmin()));
+
   return (
     <section className={pending ? "moment-hold" : undefined}>
       {moment && (
-        <DayMoment pending={pending} kind={matched.length ? "mine" : "clear"} hex={momentHex} ink={firstMine ? colorInfo(firstMine.key, firstMine).text : "#fff"} label={s.yoursUp} clearLabel={t(lang).emailSubject.noMatch} />
+        <DayMoment pending={pending} preview={preview} kind={matched.length ? "mine" : "clear"} hex={momentHex} ink={firstMine ? colorInfo(firstMine.key, firstMine).text : "#fff"} label={s.yoursUp} clearLabel={t(lang).emailSubject.noMatch} />
       )}
       <div className="rise flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
         <div>
@@ -80,7 +91,21 @@ export async function TodayColors() {
             <p className="mt-2 text-sm text-fg-muted">{s.notYours(mineNames.join(", "))}</p>
           )}
         </div>
-        <p className="text-xs text-fg-muted">{s.live(fetched)}</p>
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          {daysLeft !== null && (
+            <Link
+              href="/notify"
+              title={s.daysToGoHelp}
+              className="inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-sm font-semibold text-accent"
+            >
+              <svg aria-hidden viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 21V4M5 4h11l-2 4 2 4H5" />
+              </svg>
+              {s.daysToGo(daysLeft)}
+            </Link>
+          )}
+          <p className="text-xs text-fg-muted">{s.live(fetched)}</p>
+        </div>
       </div>
 
       {stale && <p className="panel mt-4 rounded-md px-4 py-3 text-sm text-fg">{s.stale(data.dateText)}</p>}

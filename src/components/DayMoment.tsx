@@ -11,10 +11,10 @@ import { useEffect, useRef, useState } from "react";
  * already been shown (once per account). On the day it is due it arrives as part of
  * the page, so the page is never seen first; afterwards, a listed color's tile shakes.
  *
- * Adding ?moment=clear or ?moment=mine to the address plays it on demand; ?moment=clear-load and
+ * For the site's owner (and on a development copy), adding ?moment=clear or ?moment=mine to the address plays it on demand; ?moment=clear-load and
  * ?moment=mine-load play it the way it runs on the day, driven by the stylesheet.
  */
-export function DayMoment({ kind, pending = false, hex, ink = "#fff", label = "", clearLabel = "" }: { kind: "clear" | "mine"; pending?: boolean; hex: string; ink?: string; label?: string; clearLabel?: string }) {
+export function DayMoment({ kind, pending = false, preview = false, hex, ink = "#fff", label = "", clearLabel = "" }: { kind: "clear" | "mine"; pending?: boolean; preview?: boolean; hex: string; ink?: string; label?: string; clearLabel?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const curtain = useRef<HTMLDivElement>(null);
   const icon = useRef<SVGSVGElement>(null);
@@ -38,7 +38,8 @@ export function DayMoment({ kind, pending = false, hex, ink = "#fff", label = ""
       later(0, () => setWhich(null)); // the stylesheet already keeps the banner hidden; nothing is marked as seen
       return stop;
     }
-    const forced = new URLSearchParams(location.search).get("moment");
+    // previews are for the owner only: for everyone else the address can't make the banner say anything
+    const forced = preview ? new URLSearchParams(location.search).get("moment") : null;
     if (forced === "clear" || forced === "mine") {
       later(0, () => {
         setScripted(true);
@@ -64,7 +65,7 @@ export function DayMoment({ kind, pending = false, hex, ink = "#fff", label = ""
       later(1100, shakeMine); // no banner today, but your color is up: the tile gives a short shake once it has landed
     }
     return stop;
-  }, [kind, pending]);
+  }, [kind, pending, preview]);
 
   // While it is up: the face moves, good news gets confetti, and it is taken away once it has lifted.
   useEffect(() => {
