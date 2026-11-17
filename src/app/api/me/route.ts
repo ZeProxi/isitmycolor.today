@@ -4,6 +4,7 @@ import { contactsOf, deleteSubscriber, getSubscriber, upsertSubscriber, AGREEMEN
 import { normalizeColorKey } from "@/lib/colors";
 import { isLang } from "@/lib/i18n";
 import { deleteAlerts } from "@/lib/alertlog";
+import { forHolder } from "@/lib/supporters";
 import { todayIsoMountain } from "@/lib/dates";
 
 /** The signed-in person's alert. All three methods need the session cookie. */
@@ -19,7 +20,7 @@ export async function GET() {
     id: session.id,
     // before the alert exists, the contacts are the ones proven in this browser
     contacts: subscriber ? contactsOf(subscriber) : session.contacts,
-    subscriber,
+    subscriber: forHolder(subscriber),
     agreementVersion: AGREEMENT_VERSION,
   });
 }
@@ -65,7 +66,7 @@ export async function PUT(req: NextRequest) {
     agree,
     contacts: session.contacts,
   });
-  return Response.json({ id: session.id, contacts: contactsOf(subscriber), subscriber });
+  return Response.json({ id: session.id, contacts: contactsOf(subscriber), subscriber: forHolder(subscriber) });
 }
 
 /** DELETE -> stop alerts and forget the number and email */

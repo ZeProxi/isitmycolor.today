@@ -23,7 +23,7 @@ type Subscriber = {
   name?: string;
   supporters?: SupportPerson[];
 };
-type SupportPerson = { email: string; status: "invited" | "active" };
+type SupportPerson = { email: string; status: "invited" | "active"; text?: boolean };
 type Step = "loading" | "channel" | "phone" | "email" | "code" | "colors" | "agree" | "done";
 const AGREEMENT_VERSION = 1;
 const hasAgreed = (sub: Subscriber | null) => !!sub?.agreedAt && (sub.agreementVersion ?? 0) >= AGREEMENT_VERSION;
@@ -367,16 +367,17 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
           <Line label={c.emailRow} value={contacts.email || c.notSet} dim={!contacts.email}>
             <ChannelActions has={!!contacts.email} canRemove={!!contacts.sms} labels={c} busy={busy} onSet={() => startLink("email")} onRemove={() => removeChannel("email")} />
           </Line>
-  <Supporters
-            key={existing?.phone}
-            initial={existing?.supporters ?? []}
-            initialName={existing?.name ?? ""}
-            busy={busy}
-            setStatus={setStatus}
-            onGone={signedOut}
-          />
           <PushButton className="px-4 py-3" title={st.device} help={st.deviceHelp} />
         </Group>
+
+        <Supporters
+          key={existing?.phone}
+          initial={existing?.supporters ?? []}
+          initialName={existing?.name ?? ""}
+          busy={busy}
+          setStatus={setStatus}
+          onGone={signedOut}
+        />
 
         <Group title={st.when}>
           <Line label={st.send}>
@@ -908,11 +909,12 @@ function Supporters({ initial, initialName, busy, setStatus, onGone }: { initial
     }
   }
 
-  // Lives inside "Where to send", under the Email row: the people already added, then one quiet link to add another.
+  // Its own group, apart from the holder's own channels, so it's clear these are other people.
   return (
-    <>
+    <Group title={t.title}>
+      <p className="px-4 py-3 text-sm text-fg-muted">{t.help}</p>
       {people.map((p) => (
-        <Line key={p.email} label={p.email} hint={p.status === "active" ? t.active : t.invited}>
+        <Line key={p.email} label={p.email} hint={p.status !== "active" ? t.invited : p.text ? t.activeText : t.active}>
           <span className="flex items-center gap-3">
             {p.status === "invited" && name && (
               <button type="button" className="link" disabled={busy} onClick={() => invite(p.email)}>
@@ -926,15 +928,14 @@ function Supporters({ initial, initialName, busy, setStatus, onGone }: { initial
         </Line>
       ))}
       {!adding && people.length < 2 && (
-        <div className="px-4 py-2">
-          <button type="button" className="link text-xs" disabled={busy} onClick={() => setAdding(true)}>
+        <div className="px-4 py-3">
+          <button type="button" className="btn-ghost px-3 py-1.5 text-sm" disabled={busy} onClick={() => setAdding(true)}>
             + {t.add}
           </button>
         </div>
       )}
       {adding && (
         <form className="space-y-3 px-4 py-4" onSubmit={(e) => invite(email, e)}>
-          <p className="text-xs text-fg-muted">{t.help}</p>
           <label className="block text-sm font-semibold">
             {t.emailLabel}
             <input type="email" inputMode="email" autoComplete="off" required autoFocus placeholder="name@example.com" className="field mt-1.5 font-normal" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -953,6 +954,6 @@ function Supporters({ initial, initialName, busy, setStatus, onGone }: { initial
           </div>
         </form>
       )}
-    </>
+    </Group>
   );
 }

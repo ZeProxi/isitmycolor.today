@@ -6,6 +6,7 @@ import { verifyCode, makeSessionToken, sessionCookieOptions, currentSession, SES
 import { contactsOf, findAccountByContact, getSubscriber, mergeAccounts, setContact, type Subscriber } from "@/lib/dynamo";
 import { deleteAlerts } from "@/lib/alertlog";
 import { allow, clientIp } from "@/lib/ratelimit";
+import { forHolder } from "@/lib/supporters";
 
 /**
  * POST { phone | email, code } -> proves the person holds that contact.
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
 
   (await cookies()).set(SESSION_COOKIE, makeSessionToken(out.id, out.contacts), sessionCookieOptions());
   const subscriber = await getSubscriber(out.id);
-  return Response.json({ ok: true, id: out.id, contacts: subscriber ? contactsOf(subscriber) : out.contacts, subscriber, merged: out.merged });
+  return Response.json({ ok: true, id: out.id, contacts: subscriber ? contactsOf(subscriber) : out.contacts, subscriber: forHolder(subscriber), merged: out.merged });
 }
 
 type Outcome = { id: string; contacts: Contacts; merged: boolean };

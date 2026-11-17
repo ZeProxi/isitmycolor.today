@@ -20,23 +20,29 @@ export type Supporter = {
   status: "invited" | "active";
   invitedAt: string;
   confirmedAt?: string;
+  /** Their own mobile number, which they added and proved with a code themselves. Never supplied by the holder. */
+  sms?: string;
 };
 
 export const MAX_SUPPORTERS = 2;
 
-function token(purpose: "confirm" | "stop", id: string, email: string): string {
+type Purpose = "confirm" | "stop" | "text";
+
+function token(purpose: Purpose, id: string, email: string): string {
   if (!env.sessionSecret) throw new Error("SESSION_SECRET (or CRON_SECRET) must be set");
   return createHmac("sha256", env.sessionSecret).update(`supporter:${purpose}:${id}:${email}`).digest("base64url");
 }
 
-function link(purpose: "confirm" | "stop", id: string, email: string): string {
+function link(purpose: Purpose, id: string, email: string): string {
   const base = env.siteUrl || "https://isitmycolor.today";
   return `${base}/api/supporter/${purpose}?p=${encodeURIComponent(id)}&e=${encodeURIComponent(email)}&t=${token(purpose, id, email)}`;
 }
 export const confirmUrl = (id: string, email: string) => link("confirm", id, email);
 export const stopUrl = (id: string, email: string) => link("stop", id, email);
+/** Where a support person can add (or remove) their own number for texts. */
+export const textUrl = (id: string, email: string) => link("text", id, email);
 
-export function verifySupporterLink(purpose: "confirm" | "stop", id: string, email: string, t: string): boolean {
+export function verifySupporterLink(purpose: Purpose, id: string, email: string, t: string): boolean {
   if (!id || !email || !t) return false;
   const a = Buffer.from(token(purpose, id, email));
   const b = Buffer.from(t);
@@ -76,3 +82,34 @@ export async function removeSupporter(id: string, email: string): Promise<void> 
 
 /** Who gets a copy today. */
 export const activeSupporters = (sub: Pick<Subscriber, "supporters">): Supporter[] => (sub.supporters ?? []).filter((s) => s.status === "active");
+
+/** Set or clear the number a support person gets texts on. Returns false if they are no longer a supporter. */
+export async function setSupporterSms(id: string, email: string, sms: string | undefined): Promise<boolean> {
+  const sub = await getSubscriber(id);
+  const list = sub?.supporters ?? [];
+  if (!sub || !list.some((s) => s.email === email && s.status === "active")) return false;
+  await saveSupporters(
+    id,
+    list.map((s) => {
+      if (s.email !== email) return s;
+      const { sms: _old, ...rest } = s;
+      void _old;
+      return sms ? { ...rest, sms } : rest;
+    }),
+  );
+  return true;
+}
+
+/**
+ * What the account holder is allowed to see about their support people: who,
+ * and whether texts are on. Never the supporter's phone number, which they gave
+ * to the site and not to the holder.
+ */
+export function supportersForHolder(sub: Pick<Subscriber, "supporters">): { email: string; status: "invited" | "active"; text: boolean }[] {
+  return (sub.supporters ?? []).map((s) => ({ email: s.email, status: s.status, text: !!s.sms }));
+}
+
+/** The subscriber row as sent to the holder's own browser. */
+export function forHolder<T extends Subscriber | null>(sub: T): T {
+  return (sub ? { ...sub, supporters: supportersForHolder(sub) } : sub) as T;
+}

@@ -1,6 +1,8 @@
 import type { NextRequest } from "next/server";
 import { getSubscriber } from "@/lib/dynamo";
-import { confirmSupporter, verifySupporterLink } from "@/lib/supporters";
+import { confirmSupporter, textUrl, verifySupporterLink } from "@/lib/supporters";
+import { env } from "@/lib/env";
+import { ready } from "@/lib/config";
 
 /**
  * /api/supporter/confirm?p=<account>&e=<email>&t=<token>: the link in an invitation.
@@ -48,5 +50,8 @@ export async function POST(req: NextRequest) {
   const sub = await confirmSupporter(p, e);
   if (!sub) return gone();
   const who = esc(sub.name || "them");
-  return html(page("You're set", `<h1>You're set.</h1><p>You'll get an email on ${who}'s color days. Every email has a link to stop.</p><p class="es" lang="es">Listo. Recibirás un correo en los días de su color. Cada correo trae un enlace para detenerlos.</p>`));
+  await ready();
+  // Texts are their own choice, made by them: offered here and in each email once texting is switched on.
+  const texts = env.smsPending ? "" : `<p style="margin-top:22px"><a href="${esc(textUrl(p, e))}">Want a text on those days too?</a></p>`;
+  return html(page("You're set", `<h1>You're set.</h1><p>You'll get an email on ${who}'s color days. Every email has a link to stop.</p>${texts}<p class="es" lang="es">Listo. Recibirás un correo en los días de su color. Cada correo trae un enlace para detenerlos.</p>`));
 }

@@ -12,7 +12,7 @@ const FAINT = "#85857f";
 export const EMAIL_ACCENT = "#edb058";
 const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 // Always the live site: images in an email have to be reachable from the reader's mail app.
-const LOGO = "https://isitmycolor.today/icons/icon-192.png";
+const LOGO = "https://isitmycolor.today/brand/logo-email.jpg";
 
 export const esc = (v: string) =>
   v.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string);
@@ -44,11 +44,9 @@ export function emailShell(opts: { lang: "en" | "es"; preheader: string; body: s
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${INK}">
 <tr><td align="center" style="padding:28px 16px">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px">
-    <tr><td style="padding:0 0 22px">
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-        <td style="padding-right:12px"><img src="${LOGO}" width="44" height="44" alt="" style="display:block;border:0;border-radius:8px"></td>
-        <td style="font:600 17px/1.2 ${FONT};color:${FG}">${esc(name)}</td>
-      </tr></table>
+    <tr><td style="padding:0 0 20px">
+      <img src="${LOGO}" width="220" height="133" alt="${esc(name)}" style="display:block;border:0;width:220px;max-width:70%;height:auto">
+      <p style="margin:12px 0 0;font:600 18px/1.2 ${FONT};color:${FG}">${esc(name)}</p>
     </td></tr>
     <tr><td style="background:${PANEL};border:1px solid ${LINE};border-radius:8px;padding:26px 24px">
 ${opts.body}

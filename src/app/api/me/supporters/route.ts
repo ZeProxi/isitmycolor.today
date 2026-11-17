@@ -3,7 +3,7 @@ import { currentSession } from "@/lib/auth";
 import { emailOf, getSubscriber } from "@/lib/dynamo";
 import { isEmail, sendEmail } from "@/lib/email";
 import { supporterInviteEmail } from "@/lib/email-layout";
-import { confirmUrl, removeSupporter, saveSupporters, MAX_SUPPORTERS, type Supporter } from "@/lib/supporters";
+import { confirmUrl, removeSupporter, saveSupporters, supportersForHolder, MAX_SUPPORTERS, type Supporter } from "@/lib/supporters";
 import { allow } from "@/lib/ratelimit";
 import { isLang } from "@/lib/i18n";
 import { nowIso } from "@/lib/dates";
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "send_failed" }, { status: 502 });
     }
   }
-  return Response.json({ ok: true, name, supporters: next });
+  return Response.json({ ok: true, name, supporters: supportersForHolder({ supporters: next }) });
 }
 
 export async function DELETE(req: NextRequest) {
@@ -62,5 +62,5 @@ export async function DELETE(req: NextRequest) {
   if (!email) return Response.json({ error: "invalid_email" }, { status: 400 });
   await removeSupporter(session.id, email);
   const sub = await getSubscriber(session.id);
-  return Response.json({ ok: true, supporters: sub?.supporters ?? [] });
+  return Response.json({ ok: true, supporters: sub ? supportersForHolder(sub) : [] });
 }

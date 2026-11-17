@@ -88,7 +88,7 @@ export type Subscriber = {
   /** What the account holder is called in emails to their support people, e.g. "Tate". */
   name?: string;
   /** People who get an email on this person's color days. See supporters.ts. */
-  supporters?: { email: string; status: "invited" | "active"; invitedAt: string; confirmedAt?: string }[];
+  supporters?: { email: string; status: "invited" | "active"; invitedAt: string; confirmedAt?: string; sms?: string }[];
   /** Who owns this row once auth is added (Cognito sub). Unused for now. */
   ownerId?: string;
 };

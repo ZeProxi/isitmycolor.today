@@ -13,7 +13,7 @@ import { unsubscribeUrl } from "./unsubscribe";
 import { colorInfo } from "./colors";
 import { t, isLang, type Lang } from "./i18n";
 import { emailShell, emailText, esc, EMAIL_ACCENT } from "./email-layout";
-import { activeSupporters, stopUrl } from "./supporters";
+import { activeSupporters, stopUrl, textUrl } from "./supporters";
 
 export type NotifyResult = {
   snapshot: ColorsSnapshot;
@@ -84,7 +84,7 @@ export function buildEmailHtml(
   text: string,
   unsubscribe?: string,
   /** set when this copy goes to a support person: it talks about the holder by name, and `unsubscribe` is the supporter's own stop link */
-  about?: { name: string },
+  about?: { name: string; textUrl?: string },
 ): string {
   const l = langOf(sub);
   const s = t(l);
@@ -136,13 +136,13 @@ export function buildEmailHtml(
       <p style="margin:12px 0 0;padding-top:16px;border-top:1px solid ${rule};font:15px/1.55 ${font};color:${fg}">${esc(line)}</p>
       ${official}`;
   const footer = unsubscribe
-    ? `${esc(about ? s.supporter.emailWhy(about.name) : s.emailWhy)} <a href="${esc(unsubscribe)}" style="color:${muted}">${esc(about ? s.supporter.emailStop : s.emailUnsubscribe)}</a>`
+    ? `${esc(about ? s.supporter.emailWhy(about.name) : s.emailWhy)} <a href="${esc(unsubscribe)}" style="color:${muted}">${esc(about ? s.supporter.emailStop : s.emailUnsubscribe)}</a>${about?.textUrl ? ` &middot; <a href="${esc(about.textUrl)}" style="color:${muted}">${esc(s.supporter.emailTextOffer)}</a>` : ""}`
     : undefined;
   return emailShell({ lang: l, preheader: `${line} ${forEmail(text)}`, body, footer });
 }
 
 /** Email each accepted support person. A failure for one of them never affects the holder or the others. */
-async function notifySupporters(snapshot: ColorsSnapshot, matched: string[], sub: Subscriber): Promise<void> {
+async function notifySupporters(snapshot: ColorsSnapshot, matched: string[], sub: Subscriber, optedOut: Set<string> | null): Promise<void> {
   const l = langOf(sub);
   const s = t(l);
   const name = sub.name || (l === "es" ? "Alguien" : "Someone");
@@ -157,10 +157,20 @@ async function notifySupporters(snapshot: ColorsSnapshot, matched: string[], sub
       const stop = stopUrl(sub.phone, person.email);
       const line = s.supporter.emailLine(name, colors);
       // never the saved official page or the holder's own settings: just today's list and whose day it is
-      const html = buildEmailHtml(snapshot, matched, { lang: sub.lang, prefs: undefined }, line, stop, { name });
+      // the offer of texts appears only once texting is live, and only until they've taken it
+      const offer = !env.smsPending && !person.sms ? textUrl(sub.phone, person.email) : undefined;
+      const html = buildEmailHtml(snapshot, matched, { lang: sub.lang, prefs: undefined }, line, stop, { name, textUrl: offer });
       await sendEmail(person.email, s.supporter.emailSubject(name), `${line}\n\n${s.supporter.emailStop}: ${stop}`, html, undefined, undefined, stop);
     } catch (e) {
       console.warn("supporter email failed", e instanceof Error ? e.message : e);
+    }
+    // A text only to a number they added and proved themselves, and never after a STOP.
+    if (person.sms && !env.smsPending && !optedOut?.has(person.sms)) {
+      try {
+        await sendSms(person.sms, s.supporter.sms(name, colors.toUpperCase(), `${snapshot.dayName} ${snapshot.dateText}`));
+      } catch (e) {
+        console.warn("supporter text failed", e instanceof Error ? e.message : e);
+      }
     }
   }
 }
@@ -303,7 +313,7 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
       if (tried && !smsWent && !emailWent && !pushWent) throw new Error(smsError ?? email ?? "nothing could be delivered");
       await markNotified(sub.phone, snapshot.date!);
       // Support people hear only on color days, and only after the holder's own alert has been dealt with.
-      if (matched.length) await notifySupporters(snapshot, matched, sub);
+      if (matched.length) await notifySupporters(snapshot, matched, sub, optedOut);
       result.notified.push({ phone: sub.phone, colors: matched, kind: matched.length ? "match" : "daily", email, smsError, push, ...r });
     } catch (e) {
       result.errors.push({ phone: sub.phone, error: e instanceof Error ? e.message : String(e) });

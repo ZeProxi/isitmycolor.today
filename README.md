@@ -129,6 +129,11 @@ page it links to (`/api/supporter/confirm`), so nobody is emailed alerts without
 has a stop link (`/api/supporter/stop`), the holder can remove them at any time, and they are stored on the
 holder's row, so they are deleted with the alert. See `src/lib/supporters.ts`.
 
+Once texting is live (`SMS_PENDING` off), an accepted support person is also offered texts, on the page they
+land on after accepting and in each email. They enter their own number at `/api/supporter/text` and prove it
+with a code; the holder never supplies or sees it. While `SMS_PENDING` is on, the offer is hidden and the page
+says texts aren't available yet.
+
 ## Push notifications and the flyer
 
 - The site is installable (manifest + icons). Signed-in people can turn on **web push** for a device from

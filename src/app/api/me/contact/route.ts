@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { currentSession, makeSessionToken, sessionCookieOptions, SESSION_COOKIE } from "@/lib/auth";
 import { contactsOf, getSubscriber, removeContact } from "@/lib/dynamo";
+import { forHolder } from "@/lib/supporters";
 
 /**
  * DELETE /api/me/contact?kind=sms|email -> stop using that channel and forget it.
@@ -25,5 +26,5 @@ export async function DELETE(req: NextRequest) {
   const subscriber = await getSubscriber(session.id);
   const contacts = subscriber ? contactsOf(subscriber) : {};
   (await cookies()).set(SESSION_COOKIE, makeSessionToken(session.id, contacts), sessionCookieOptions());
-  return Response.json({ ok: true, contacts, subscriber });
+  return Response.json({ ok: true, contacts, subscriber: forHolder(subscriber) });
 }
