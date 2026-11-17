@@ -5,6 +5,7 @@ import { t } from "@/lib/i18n";
 import { LangProvider, LangToggle } from "./LangProvider";
 import { NavTabs } from "./NavTabs";
 import { LogoMark } from "./LogoMark";
+import { Ridge } from "./Ridge";
 import { myColors } from "@/lib/mine";
 import { env } from "@/lib/env";
 import { ready } from "@/lib/config";
@@ -74,10 +75,7 @@ export async function Shell({ children }: { children: React.ReactNode }) {
 
       <footer className="mt-10">
         {/* the Wasatch ridge line from the logo; the footer is the ground under it */}
-        {/* Narrow screens show only part of the range, lower, so it isn't squeezed into sharp spikes. */}
-        <Ridge className="-mb-px block h-11 w-full sm:hidden" viewBox="330 0 400 120" />
-        <Ridge className="-mb-px hidden h-16 w-full sm:block lg:hidden" viewBox="250 0 700 120" />
-        <Ridge className="-mb-px hidden h-24 w-full lg:block" viewBox="0 0 1200 120" />
+        <Ridge />
         <div className="bg-ink-2">
         <div className="mx-auto w-full max-w-5xl px-4 pb-28 pt-2 text-sm sm:px-6 md:pb-10">
           <p className="font-semibold text-fg">{s.footer.lead}</p>
@@ -125,14 +123,5 @@ export async function Shell({ children }: { children: React.ReactNode }) {
 
       <NavTabs placement="bottom" admin={admin} contact={!!env.contactEmail} />
     </LangProvider>
-  );
-}
-
-function Ridge({ className, viewBox }: { className: string; viewBox: string }) {
-  return (
-    <svg aria-hidden className={className} viewBox={viewBox} preserveAspectRatio="none">
-      <path fill="var(--line)" d="M0 120V84L70 54 116 72 178 28 218 54 272 16 330 62 374 42 446 76 512 24 562 54 600 36 664 76 748 18 804 54 852 32 922 74 984 44 1038 68 1100 34 1150 60 1200 40V120z" />
-      <path fill="var(--ink-2)" d="M0 120V102L58 76 102 92 172 52 224 86 264 72 330 102 408 56 454 84 514 62 586 100 640 76 706 106 796 56 854 90 898 74 974 110 1034 82 1100 104 1160 78 1200 92V120z" />
-    </svg>
   );
 }
