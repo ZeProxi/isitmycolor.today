@@ -24,7 +24,7 @@ const TREES = "M11.2 95.1 7.8 103.7 9.7 103.7 6.2 111.2 8.9 111.2 4.8 118.2 10 1
  * the distant range, the main range and the snow that fades with distance from the sun. The foothills and
  * pines in front stay dark, the way things in front of a low sun do.
  */
-function Art({ viewBox, sunX, id }: { viewBox: string; sunX: number; id: string }) {
+function Art({ viewBox, sunX, sunY = 84, reach = 300, id }: { viewBox: string; sunX: number; sunY?: number; reach?: number; id: string }) {
   const light = `url(#${id})`;
   // The two ranges behind are separate layers, a little wider than the screen, so they can slide for depth
   // (see RidgeMotion). The foothills in front never move: the walker stands on them.
@@ -35,7 +35,7 @@ function Art({ viewBox, sunX, id }: { viewBox: string; sunX: number; id: string 
     <div className="relative h-full w-full">
       <svg aria-hidden className={behind} viewBox={viewBox} preserveAspectRatio="none" data-depth="10" data-rise="8">
         <defs>
-          <radialGradient id={id} gradientUnits="userSpaceOnUse" cx={sunX} cy={84} r={300}>
+          <radialGradient id={id} gradientUnits="userSpaceOnUse" cx={sunX} cy={sunY} r={reach}>
             <stop offset="0" style={{ stopColor: "var(--accent)", stopOpacity: 1 }} />
             <stop offset="0.35" style={{ stopColor: "var(--accent)", stopOpacity: 0.45 }} />
             <stop offset="1" style={{ stopColor: "var(--accent)", stopOpacity: 0 }} />
@@ -86,18 +86,20 @@ export function Ridge() {
   // The sun and the walker are their own elements over the drawing, because the drawing is stretched to the
   // screen's width, which would turn a circle into an oval and a figure into a smear.
   // Sun positions are in pixels from the top of a box that starts 96px above the mountains (room for the glow).
+  // Phones and tablets show the middle of the range, where the peaks are tallest, so the sun sits higher there
+  // to clear them, and its light reaches less far so the whole slice isn't washed in it.
   return (
     <>
       <div aria-hidden className="relative -mb-px h-14 overflow-x-clip sm:hidden">
-        <Sun at="left-[26%] top-[125px]" size="h-[39px]" glow="h-[170px]" />
-        <Art viewBox="330 0 400 160" sunX={434} id="ridge-light-s" />
+        <Sun at="left-[26%] top-[110px]" size="h-[34px]" glow="h-[160px]" />
+        <Art viewBox="330 0 400 160" sunX={434} sunY={40} reach={190} id="ridge-light-s" />
         <RidgeMotion />
         <RidgeBirds className="w-[9px]" />
         <RidgeWalker from={330} to={730} start={570} className="h-[11px]" />
       </div>
       <div aria-hidden className="relative -mb-px hidden h-20 overflow-x-clip sm:block lg:hidden">
-        <Sun at="left-[27%] top-[138px]" size="h-[54px]" glow="h-[230px]" />
-        <Art viewBox="250 0 700 160" sunX={439} id="ridge-light-m" />
+        <Sun at="left-[27%] top-[119px]" size="h-[48px]" glow="h-[220px]" />
+        <Art viewBox="250 0 700 160" sunX={439} sunY={46} reach={240} id="ridge-light-m" />
         <RidgeMotion />
         <RidgeBirds className="w-[11px]" />
         <RidgeWalker from={250} to={950} start={570} className="h-[15px]" />
