@@ -5,7 +5,7 @@ import { normalizePhone } from "@/lib/sms";
 import { env } from "@/lib/env";
 import { ready } from "@/lib/config";
 import { allow, clientIp } from "@/lib/ratelimit";
-import { setSupporterSms, verifySupporterLink } from "@/lib/supporters";
+import { setSupporterSms, resolveSupporterLink } from "@/lib/supporters";
 
 /**
  * /api/supporter/text?p=<account>&e=<email>&t=<token>: where a support person who
@@ -25,11 +25,12 @@ const html = (s: string, status = 200) => new Response(s, { status, headers: { "
 const esc = (v: string) => v.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string);
 
 
-function read(req: NextRequest) {
+/** The account id and supporter email this link is for, once its signature checks out. */
+async function read(req: NextRequest) {
   const q = req.nextUrl.searchParams;
-  const p = q.get("p") ?? "";
   const e = (q.get("e") ?? "").toLowerCase();
-  return { p, e, ok: verifySupporterLink("text", p, e, q.get("t") ?? "") };
+  const p = await resolveSupporterLink("text", q.get("p") ?? "", e, q.get("t") ?? "");
+  return { p: p ?? "", e, ok: !!p };
 }
 const invalid = () => html(page("Link not valid", "<h1>This link isn't valid.</h1>"), 400);
 const gone = () => html(page("Not active", "<h1>These alerts are no longer active.</h1><p>The person who invited you removed you or stopped their alerts.</p>"), 410);
@@ -68,7 +69,7 @@ const current = (who: string, phone: string) =>
 
 async function load(req: NextRequest) {
   await ready();
-  const { p, e, ok } = read(req);
+  const { p, e, ok } = await read(req);
   if (!ok) return { res: invalid() } as const;
   const sub = await getSubscriber(p);
   const me = sub?.supporters?.find((s) => s.email === e && s.status === "active");

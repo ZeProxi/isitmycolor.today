@@ -174,11 +174,11 @@ async function notifySupporters(snapshot: ColorsSnapshot, matched: string[], sub
     .join(", ");
   for (const person of activeSupporters(sub)) {
     try {
-      const stop = stopUrl(sub.phone, person.email);
+      const stop = await stopUrl(sub, person.email);
       const line = s.supporter.emailLine(name, colors);
       // never the saved official page or the holder's own settings: just today's list and whose day it is
       // the offer of texts appears only once texting is live, and only until they've taken it
-      const offer = !env.smsPending && !person.sms ? textUrl(sub.phone, person.email) : undefined;
+      const offer = !env.smsPending && !person.sms ? await textUrl(sub, person.email) : undefined;
       const html = buildEmailHtml(snapshot, matched, { lang: sub.lang, prefs: undefined }, line, stop, { name, textUrl: offer });
       await sendEmail(person.email, s.supporter.emailSubject(name), `${line}\n\n${s.supporter.emailStop}: ${stop}`, html, undefined, undefined, stop);
     } catch (e) {

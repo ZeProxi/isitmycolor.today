@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { getSubscriber } from "@/lib/dynamo";
-import { confirmSupporter, textUrl, verifySupporterLink } from "@/lib/supporters";
+import { confirmSupporter, textUrl, resolveSupporterLink } from "@/lib/supporters";
 import { env } from "@/lib/env";
 import { ready } from "@/lib/config";
 
@@ -16,17 +16,18 @@ const page = (title: string, body: string) => `<!doctype html><html lang="en"><h
 const html = (s: string, status = 200) => new Response(s, { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
 const esc = (v: string) => v.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string);
 
-function read(req: NextRequest) {
+/** The account id and supporter email this link is for, once its signature checks out. */
+async function read(req: NextRequest) {
   const q = req.nextUrl.searchParams;
-  const p = q.get("p") ?? "";
   const e = (q.get("e") ?? "").toLowerCase();
-  return { p, e, ok: verifySupporterLink("confirm", p, e, q.get("t") ?? "") };
+  const p = await resolveSupporterLink("confirm", q.get("p") ?? "", e, q.get("t") ?? "");
+  return { p: p ?? "", e, ok: !!p };
 }
 const invalid = () => html(page("Link not valid", "<h1>This link isn't valid.</h1><p>Ask the person who invited you to send a new one.</p>"), 400);
 const gone = () => html(page("Invitation withdrawn", "<h1>This invitation is no longer active.</h1><p>The person who invited you removed it or stopped their alerts.</p><p class=\"es\" lang=\"es\">Esta invitación ya no está activa.</p>"), 410);
 
 export async function GET(req: NextRequest) {
-  const { p, e, ok } = read(req);
+  const { p, e, ok } = await read(req);
   if (!ok) return invalid();
   const sub = await getSubscriber(p);
   if (!sub?.supporters?.some((s) => s.email === e)) return gone();
@@ -45,13 +46,13 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { p, e, ok } = read(req);
+  const { p, e, ok } = await read(req);
   if (!ok) return invalid();
   const sub = await confirmSupporter(p, e);
   if (!sub) return gone();
   const who = esc(sub.name || "them");
   await ready();
   // Texts are their own choice, made by them: offered here and in each email once texting is switched on.
-  const texts = env.smsPending ? "" : `<p style="margin-top:22px"><a href="${esc(textUrl(p, e))}">Want a text on those days too?</a></p>`;
+  const texts = env.smsPending ? "" : `<p style="margin-top:22px"><a href="${esc(await textUrl(sub, e))}">Want a text on those days too?</a></p>`;
   return html(page("You're set", `<h1>You're set.</h1><p>You'll get an email on ${who}'s color days. Every email has a link to stop.</p>${texts}<p class="es" lang="es">Listo. Recibirás un correo en los días de su color. Cada correo trae un enlace para detenerlos.</p>`));
 }

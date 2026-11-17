@@ -60,6 +60,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [agreed, setAgreed] = useState(false);
   const [existing, setExisting] = useState<Subscriber | null>(null);
+  const [supporting, setSupporting] = useState<{ name: string; status: "invited" | "active"; link: string }[]>([]); // people this email is a support person for
   const [editing, setEditing] = useState(false); // came from "done" to tweak one thing
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const verifying = useRef(false);
@@ -71,6 +72,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
         if (r.status === 401) return setStep("channel");
         const d = await r.json();
         setContacts(d.contacts ?? {});
+        setSupporting(d.supporting ?? []);
         loadSubscriber(d.subscriber);
         setStep(!d.subscriber ? "colors" : hasAgreed(d.subscriber) ? "done" : "agree");
       })
@@ -175,6 +177,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
       }
       const got: Contacts = d.contacts ?? {};
       setContacts(got);
+      setSupporting(d.supporting ?? []);
       loadSubscriber(d.subscriber);
       setDevCode(null);
       setPhone("");
@@ -283,6 +286,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
 
   function signedOut() {
     loadSubscriber(null);
+    setSupporting([]);
     setContacts({});
     setPending(null);
     setCode("");
@@ -662,6 +666,19 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
 
         {step === "colors" && (
           <form onSubmit={(e) => { e.preventDefault(); if (editing) void save("done"); else { setStatus({ kind: "idle" }); setStep("agree"); } }}>
+            {!editing && !existing && supporting.length > 0 && (
+              <div className="mb-6 space-y-3 rounded-md border border-line-strong bg-black/25 p-4 text-sm">
+                {supporting.map((p) => (
+                  <p key={p.link}>
+                    {p.status === "active" ? s.supporter.youSupport(p.name) : s.supporter.youInvited(p.name)}{" "}
+                    <a className="link" href={p.link}>
+                      {p.status === "active" ? s.supporter.stopThose : s.supporter.seeInvite}
+                    </a>
+                  </p>
+                ))}
+                <p className="text-fg-muted">{s.supporter.ownAlertBelow}</p>
+              </div>
+            )}
             <h2 className="text-xl font-bold sm:text-2xl">{s.wizard.colorsTitle}</h2>
             <p className="mt-2 text-sm text-fg-muted">{s.wizard.colorsHelp}</p>
             <div className="mt-5 flex flex-wrap gap-2">

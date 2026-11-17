@@ -4,7 +4,7 @@ import { contactsOf, deleteSubscriber, getSubscriber, upsertSubscriber, AGREEMEN
 import { normalizeColorKey } from "@/lib/colors";
 import { isLang } from "@/lib/i18n";
 import { deleteAlerts } from "@/lib/alertlog";
-import { forHolder } from "@/lib/supporters";
+import { forHolder, supportingFor } from "@/lib/supporters";
 import { todayIsoMountain } from "@/lib/dates";
 
 /** The signed-in person's alert. All three methods need the session cookie. */
@@ -21,6 +21,7 @@ export async function GET() {
     // before the alert exists, the contacts are the ones proven in this browser
     contacts: subscriber ? contactsOf(subscriber) : session.contacts,
     subscriber: forHolder(subscriber),
+    supporting: !subscriber && session.contacts.email ? await supportingFor(session.contacts.email).catch(() => []) : [],
     agreementVersion: AGREEMENT_VERSION,
   });
 }

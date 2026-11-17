@@ -12,7 +12,7 @@ const SITE = "https://isitmycolor.today";
 export default async function FlyerPage() {
   const qr = await QRCode.toString(`${SITE}/notify`, { type: "svg", margin: 1, color: { dark: "#000000", light: "#ffffff" } });
   return (
-    <div className="flyer mx-auto max-w-[720px] bg-white px-10 py-12 text-black print:max-w-none print:px-0 print:py-0">
+    <div className="flyer mx-auto max-w-[720px] bg-white px-5 py-6 text-black sm:px-10 sm:py-12 print:max-w-none print:px-0 print:py-0">
       <style>{`
         @media print {
           header, footer, nav, .no-print { display: none !important; }
@@ -21,26 +21,28 @@ export default async function FlyerPage() {
           .flyer { box-shadow: none; }
         }
       `}</style>
-      <div className="no-print mb-6 flex items-center justify-between rounded-md bg-black/5 px-4 py-3 text-sm">
-        <span>Print this page (Ctrl+P / Cmd+P). It&apos;s sized for a letter sheet.</span>
+      {/* On a phone this stacks into one column to read; printed, it is always the two-column letter sheet. */}
+      <div className="no-print mb-6 rounded-md bg-black/5 px-4 py-3 text-sm">
+        <span className="hidden sm:inline">Print this page (Ctrl+P / Cmd+P). It&apos;s sized for a letter sheet.</span>
+        <span className="sm:hidden">A one-page handout. Print it from your browser&apos;s menu, or share this page.</span>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4 print:flex-row print:items-center print:gap-4">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/brand/logo.webp" alt="" width={119} height={72} className="h-[72px] w-[119px]" />
-        <h1 className="text-5xl font-bold leading-none tracking-tight">Is it my color today?</h1>
+        <h1 className="text-4xl font-bold leading-none tracking-tight sm:text-5xl print:text-5xl">Wasatch UA Alerts</h1>
       </div>
-      <p className="mt-3 text-2xl font-semibold text-black/70">¿Es mi color hoy?</p>
+      <p className="mt-3 text-xl font-semibold text-black/70 sm:text-2xl print:text-2xl">Is it my color today? · ¿Es mi color hoy?</p>
 
-      <div className="mt-8 grid grid-cols-[1fr_220px] items-start gap-8">
-        <div className="space-y-5 text-lg leading-snug">
+      <div className="mt-6 grid grid-cols-1 items-start gap-6 sm:mt-8 sm:grid-cols-[1fr_220px] sm:gap-8 print:mt-8 print:grid-cols-[1fr_220px] print:gap-8">
+        <div className="space-y-4 text-base leading-snug sm:space-y-5 sm:text-lg print:space-y-5 print:text-lg">
           <p>
-            <strong>Get a text on the mornings your UA color is called.</strong> Free. No app to install. Sign up with your phone
-            number in about a minute.
+            <strong>Get an alert on the mornings your UA color is called.</strong> By email or text. Free. No app to install. Sign
+            up in about a minute.
           </p>
           <p className="text-black/70">
-            <strong>Recibe un texto las mañanas en que llaman tu color.</strong> Gratis. Sin app. Regístrate con tu número de
-            celular en un minuto.
+            <strong>Recibe una alerta las mañanas en que llaman tu color.</strong> Por correo o texto. Gratis. Sin app. Regístrate
+            en un minuto.
           </p>
           <ul className="space-y-1 text-base">
             <li>• Today&apos;s colors, large and clear</li>
@@ -50,13 +52,13 @@ export default async function FlyerPage() {
           </ul>
         </div>
         <div className="text-center">
-          <div className="mx-auto w-[220px] rounded-md border-2 border-black p-2" dangerouslySetInnerHTML={{ __html: qr }} />
+          <div className="mx-auto w-[200px] max-w-full rounded-md border-2 border-black p-2 sm:w-[220px] print:w-[220px]" dangerouslySetInnerHTML={{ __html: qr }} />
           <p className="mt-2 text-sm font-semibold">Scan to sign up</p>
           <p className="text-sm text-black/60">Escanea para registrarte</p>
         </div>
       </div>
 
-      <p className="mt-8 text-3xl font-bold tracking-tight">isitmycolor.today</p>
+      <p className="mt-8 text-center text-2xl font-bold tracking-tight sm:text-left sm:text-3xl print:text-left print:text-3xl">isitmycolor.today</p>
 
       <div className="mt-8 border-t-2 border-black pt-4 text-sm leading-snug text-black/70">
         <p>

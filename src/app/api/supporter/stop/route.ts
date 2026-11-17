@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { removeSupporter, verifySupporterLink } from "@/lib/supporters";
+import { removeSupporter, resolveSupporterLink } from "@/lib/supporters";
 
 /**
  * /api/supporter/stop?p=<account>&e=<email>&t=<token>: the "stop these emails" link in
@@ -12,16 +12,17 @@ const page = (title: string, body: string) => `<!doctype html><html lang="en"><h
 <body><main>${body}</main></body></html>`;
 const html = (s: string, status = 200) => new Response(s, { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
 
-function read(req: NextRequest) {
+/** The account id and supporter email this link is for, once its signature checks out. */
+async function read(req: NextRequest) {
   const q = req.nextUrl.searchParams;
-  const p = q.get("p") ?? "";
   const e = (q.get("e") ?? "").toLowerCase();
-  return { p, e, ok: verifySupporterLink("stop", p, e, q.get("t") ?? "") };
+  const p = await resolveSupporterLink("stop", q.get("p") ?? "", e, q.get("t") ?? "");
+  return { p: p ?? "", e, ok: !!p };
 }
 const invalid = () => html(page("Link not valid", "<h1>This link isn't valid.</h1>"), 400);
 
 export async function GET(req: NextRequest) {
-  if (!read(req).ok) return invalid();
+  if (!(await read(req)).ok) return invalid();
   return html(
     page(
       "Stop these emails?",
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { p, e, ok } = read(req);
+  const { p, e, ok } = await read(req);
   if (!ok) return invalid();
   await removeSupporter(p, e);
   return html(page("Emails stopped", `<h1>Emails stopped.</h1><p>You won't hear from us again about this person.</p><p class="es" lang="es">Los correos se detuvieron.</p>`));

@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 
   if (existing?.status !== "active") {
     const lang = isLang(sub.lang) ? sub.lang : "en";
-    const mail = supporterInviteEmail(name, lang, confirmUrl(session.id, email));
+    const mail = supporterInviteEmail(name, lang, await confirmUrl(sub, email));
     try {
       const r = await sendEmail(email, mail.subject, mail.text, mail.html);
       if (r.skipped) throw new Error(r.skipped);

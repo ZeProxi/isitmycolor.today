@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
   DynamoDBDocumentClient,
@@ -85,6 +86,12 @@ export type Subscriber = {
   emailStopped?: { at: string; reason: "bounce" | "complaint" | "unsubscribe"; email: string };
   /** web push subscriptions (devices that allowed notifications) */
   push?: { endpoint: string; keys: { p256dh: string; auth: string }; addedAt: string; ua?: string }[];
+  /**
+   * Random id used in links that other people receive (support people's accept,
+   * stop and text links). The account id itself is often the holder's phone
+   * number or email, which must not travel in someone else's inbox.
+   */
+  pid?: string;
   /** What the account holder is called in emails to their support people, e.g. "Sam". */
   name?: string;
   /** People who get an email on this person's color days. See supporters.ts. */
@@ -236,6 +243,55 @@ export async function listActiveSubscribers(): Promise<Subscriber[]> {
       }),
     );
     out.push(...((r.Items as Subscriber[]) ?? []));
+    ExclusiveStartKey = r.LastEvaluatedKey;
+  } while (ExclusiveStartKey);
+  return out;
+}
+
+/** The account's public id for links, created the first time one is needed. */
+export async function ensurePid(sub: Subscriber): Promise<string> {
+  if (sub.pid) return sub.pid;
+  const pid = randomUUID().replace(/-/g, "");
+  try {
+    await (await client()).send(
+      new UpdateCommand({
+        TableName: env.subscribersTable,
+        Key: { phone: sub.phone },
+        UpdateExpression: "SET pid = :p",
+        ConditionExpression: "attribute_exists(phone) AND attribute_not_exists(pid)",
+        ExpressionAttributeValues: { ":p": pid },
+      }),
+    );
+    sub.pid = pid;
+    return pid;
+  } catch (e) {
+    if ((e as { name?: string }).name !== "ConditionalCheckFailedException") throw e;
+    return (await getSubscriber(sub.phone))?.pid ?? pid; // someone else set it first
+  }
+}
+
+/** The account a public id belongs to (a handful of rows; a scan is fine at this size). */
+export async function findByPid(pid: string): Promise<Subscriber | null> {
+  let ExclusiveStartKey: Record<string, unknown> | undefined;
+  do {
+    const r = await (await client()).send(
+      new ScanCommand({ TableName: env.subscribersTable, FilterExpression: "pid = :p", ExpressionAttributeValues: { ":p": pid }, ExclusiveStartKey }),
+    );
+    if (r.Items?.length) return r.Items[0] as Subscriber;
+    ExclusiveStartKey = r.LastEvaluatedKey;
+  } while (ExclusiveStartKey);
+  return null;
+}
+
+/** Every account that lists this email as a support person, invited or accepted. */
+export async function findSupporting(email: string): Promise<Subscriber[]> {
+  const out: Subscriber[] = [];
+  let ExclusiveStartKey: Record<string, unknown> | undefined;
+  do {
+    const r = await (await client()).send(
+      new ScanCommand({ TableName: env.subscribersTable, FilterExpression: "attribute_exists(supporters)", ExclusiveStartKey }),
+    );
+    for (const i of (r.Items ?? []) as Subscriber[]) if (i.supporters?.some((s) => s.email === email)) out.push(i);
     ExclusiveStartKey = r.LastEvaluatedKey;
   } while (ExclusiveStartKey);
   return out;

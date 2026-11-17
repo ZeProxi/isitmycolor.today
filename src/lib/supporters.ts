@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { UpdateCommand } from "@aws-sdk/lib-dynamodb";
-import { docClient, getSubscriber, type Subscriber } from "./dynamo";
+import { docClient, ensurePid, findByPid, findSupporting, getSubscriber, type Subscriber } from "./dynamo";
 import { env } from "./env";
 import { ready } from "./config";
 import { nowIso } from "./dates";
@@ -33,14 +33,30 @@ function token(purpose: Purpose, id: string, email: string): string {
   return createHmac("sha256", env.sessionSecret).update(`supporter:${purpose}:${id}:${email}`).digest("base64url");
 }
 
-function link(purpose: Purpose, id: string, email: string): string {
+/**
+ * A signed link for one supporter of one account. `p` is the account's public
+ * id, never the account id (often the holder's phone or email); the signature
+ * is still made over the real id.
+ */
+async function link(purpose: Purpose, sub: Subscriber, email: string): Promise<string> {
   const base = env.siteUrl || "https://isitmycolor.today";
-  return `${base}/api/supporter/${purpose}?p=${encodeURIComponent(id)}&e=${encodeURIComponent(email)}&t=${token(purpose, id, email)}`;
+  return `${base}/api/supporter/${purpose}?p=${await ensurePid(sub)}&e=${encodeURIComponent(email)}&t=${token(purpose, sub.phone, email)}`;
 }
-export const confirmUrl = (id: string, email: string) => link("confirm", id, email);
-export const stopUrl = (id: string, email: string) => link("stop", id, email);
+export const confirmUrl = (sub: Subscriber, email: string) => link("confirm", sub, email);
+export const stopUrl = (sub: Subscriber, email: string) => link("stop", sub, email);
 /** Where a support person can add (or remove) their own number for texts. */
-export const textUrl = (id: string, email: string) => link("text", id, email);
+export const textUrl = (sub: Subscriber, email: string) => link("text", sub, email);
+
+/**
+ * Checks a supporter link and returns the account id it is for, or null.
+ * Links sent before public ids existed carry the account id in `p`; those keep working.
+ */
+export async function resolveSupporterLink(purpose: Purpose, p: string, email: string, t: string): Promise<string | null> {
+  if (!p || !email || !t) return null;
+  const legacy = p.startsWith("+") || p.startsWith("email:") || p.startsWith("acct:");
+  const id = legacy ? p : (await findByPid(p))?.phone;
+  return id && verifySupporterLink(purpose, id, email, t) ? id : null;
+}
 
 export function verifySupporterLink(purpose: Purpose, id: string, email: string, t: string): boolean {
   if (!id || !email || !t) return false;
@@ -112,4 +128,20 @@ export function supportersForHolder(sub: Pick<Subscriber, "supporters">): { emai
 /** The subscriber row as sent to the holder's own browser. */
 export function forHolder<T extends Subscriber | null>(sub: T): T {
   return (sub ? { ...sub, supporters: supportersForHolder(sub) } : sub) as T;
+}
+
+/**
+ * For someone who just proved an email address: the people they are (or were
+ * invited to be) a support person for, with the link to act on each. Lets the
+ * sign-up page say "you don't need an account for that" instead of walking a
+ * sponsor into creating an alert of their own.
+ */
+export async function supportingFor(email: string): Promise<{ name: string; status: "invited" | "active"; link: string }[]> {
+  const out: { name: string; status: "invited" | "active"; link: string }[] = [];
+  for (const holder of await findSupporting(email)) {
+    const me = holder.supporters?.find((s) => s.email === email);
+    if (!me) continue;
+    out.push({ name: holder.name || "", status: me.status, link: me.status === "active" ? await stopUrl(holder, email) : await confirmUrl(holder, email) });
+  }
+  return out;
 }

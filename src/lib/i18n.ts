@@ -320,6 +320,11 @@ const en = {
     emailWhy: (name: string) => `You get this because you accepted ${name}'s invitation on isitmycolor.today.`,
     emailStop: "Stop these emails",
     emailTextOffer: "Get these by text too",
+    youSupport: (name: string) => `You get an email on ${name || "someone"}'s color days as their support person. You don't need an alert of your own for that.`,
+    youInvited: (name: string) => `${name || "Someone"} invited you to get an email on their color days. You don't need an alert of your own for that.`,
+    stopThose: "Stop those emails",
+    seeInvite: "See the invitation",
+    ownAlertBelow: "Only pick colors below if you were assigned a color yourself.",
     activeText: "Gets an email and a text on your color days",
     sms: (name: string, colors: string, day: string) =>
       `${name}'s color (${colors}) is up today, ${day}. ${name} asked for you to be told. Unofficial tool - confirm at wasatch.org/colors. Reply STOP to opt out.`,
@@ -880,6 +885,11 @@ const es: Dict = {
     emailWhy: (name: string) => `Recibes esto porque aceptaste la invitación de ${name} en isitmycolor.today.`,
     emailStop: "Dejar de recibir estos correos",
     emailTextOffer: "Recibirlos también por texto",
+    youSupport: (name: string) => `Recibes un correo en los días del color de ${name || "alguien"} como su persona de apoyo. No necesitas una alerta propia para eso.`,
+    youInvited: (name: string) => `${name || "Alguien"} te invitó a recibir un correo en los días de su color. No necesitas una alerta propia para eso.`,
+    stopThose: "Dejar de recibir esos correos",
+    seeInvite: "Ver la invitación",
+    ownAlertBelow: "Elige colores abajo solo si a ti te asignaron un color.",
     activeText: "Recibe un correo y un texto en los días de tu color",
     sms: (name: string, colors: string, day: string) =>
       `Hoy sale el color de ${name} (${colors}), ${day}. ${name} pidió que te avisáramos. Herramienta no oficial: confirma en wasatch.org/colors. Responde STOP para darte de baja.`,
