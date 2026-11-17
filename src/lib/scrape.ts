@@ -44,7 +44,11 @@ export function parseColorsHtml(html: string, sourceUrl = env.sourceUrl): Colors
   const dateText = $("#Label3").text().trim();
 
   const colors: ScrapedColor[] = [];
+  // Only the visible text boxes are colors. A hidden field or a button that the page might one day
+  // put inside the panel must never turn into a "color".
   $("#Panel1 input").each((_, el) => {
+    const type = ($(el).attr("type") ?? "text").toLowerCase();
+    if (type !== "text") return;
     const raw = ($(el).attr("value") ?? "").trim();
     if (!raw) return;
     const [en, es = ""] = raw.split("/").map((s) => s.trim());
@@ -91,7 +95,12 @@ export async function fetchColors(): Promise<ColorsSnapshot> {
       "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 isitmycolor.today",
     },
     cache: "no-store",
+    // A stalled connection must fail (and be retried on the next run), not hang the whole job.
+    signal: AbortSignal.timeout(20_000),
   });
   if (!res.ok) throw new Error(`Source returned HTTP ${res.status}`);
-  return parseColorsHtml(await res.text());
+  const html = await res.text();
+  // A response cut off part-way could be missing colors. Treat it as a failed read, never as "fewer colors today".
+  if (!/<\/html>\s*$/i.test(html)) throw new Error("Source returned an incomplete page");
+  return parseColorsHtml(html);
 }

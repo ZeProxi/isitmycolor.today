@@ -38,15 +38,38 @@ export const KNOWN_COLORS: ColorInfo[] = [
   { key: "copper", english: "Copper", spanish: "Cobre", hex: "#b87333", text: "#fff" },
 ];
 
-/** Normalize a color key: lowercase, trimmed, letters/spaces only. */
+/**
+ * Other spellings the hotline might use for a color people chose under its
+ * usual name. Matching is by exact key, so without this "grey" on the page
+ * would not alert someone who picked "Gray".
+ */
+const ALIASES: Record<string, string> = { grey: "gray", "light grey": "light gray", "dark grey": "dark gray" };
+
+/** Normalize a color key: lowercase, trimmed, letters/spaces only, one spelling per color. */
 export function normalizeColorKey(raw: string): string {
-  return raw
+  const key = raw
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z\s-]/g, "")
     .trim()
     .replace(/\s+/g, " ");
+  return ALIASES[key] ?? key;
+}
+
+/**
+ * True when the hotline calls everyone in ("all colors", "all", "todos") rather
+ * than naming colors. On such a day every subscriber's colors count as listed.
+ */
+export function everyoneCalled(todayKeys: Iterable<string>): boolean {
+  for (const k of todayKeys) if (/^(all|all colou?rs|every colou?r|todos|todos los colores)$/.test(k)) return true;
+  return false;
+}
+
+/** Which of a person's colors are called today. */
+export function matchedColors(mine: string[], todayKeys: Iterable<string>): string[] {
+  const today = new Set(todayKeys);
+  return everyoneCalled(today) ? [...mine] : mine.filter((c) => today.has(c));
 }
 
 /** Black or white, whichever reads better on the given background. */

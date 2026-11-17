@@ -2,7 +2,7 @@ import { connection } from "next/server";
 import Link from "next/link";
 import { getTodayColors } from "@/lib/today";
 import { todayIsoMountain, longDateMountain } from "@/lib/dates";
-import { colorInfo } from "@/lib/colors";
+import { colorInfo, everyoneCalled, matchedColors } from "@/lib/colors";
 import { getLang } from "@/lib/lang-server";
 import { t } from "@/lib/i18n";
 import { myColors } from "@/lib/mine";
@@ -42,14 +42,15 @@ export async function TodayColors() {
   // from three up they go two-across and shorter there. Wider screens are unchanged.
   const compact = n >= 3;
   const todayKeys = new Set(data.colors.map((c) => c.key));
-  const matched = mine.filter((k) => todayKeys.has(k));
+  const matched = matchedColors(mine, todayKeys);
+  const everyone = everyoneCalled(todayKeys);
   const mineNames = mine.map((k) => {
     const i = colorInfo(k, data.colors.find((c) => c.key === k));
     return lang === "es" && i.spanish ? i.spanish : i.english;
   });
 
   // The once-a-day animation needs today's real list and someone with colors chosen.
-  const firstMine = data.colors.find((c) => matched.includes(c.key));
+  const firstMine = data.colors.find((c) => matched.includes(c.key)) ?? (everyone && matched.length ? data.colors[0] : undefined);
   const momentHex = firstMine ? (firstMine.siteBackground ?? colorInfo(firstMine.key, firstMine).hex) : "#edb058";
 
   return (
@@ -91,7 +92,7 @@ export async function TodayColors() {
             const hex = c.siteBackground ?? info.hex; // the page's own color wins
             const primary = lang === "es" ? c.spanish || info.spanish || c.english : c.english;
             const secondary = lang === "es" ? c.english : c.spanish || info.spanish;
-            const isMine = mine.includes(c.key);
+            const isMine = mine.includes(c.key) || (everyone && mine.length > 0);
             const dimmed = matched.length > 0 && !isMine;
             return (
               <Link

@@ -8,6 +8,7 @@ import { sendPush } from "@/lib/push";
 import { logAlert } from "@/lib/alertlog";
 import { unsubscribeUrl } from "@/lib/unsubscribe";
 import { t, isLang } from "@/lib/i18n";
+import { matchedColors } from "@/lib/colors";
 
 const MAX_PER_DAY = 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -34,7 +35,7 @@ export async function POST() {
     return Response.json({ error: "source_unavailable" }, { status: 502 });
   }
   const todayKeys = new Set(snapshot.colors.map((c) => c.key));
-  const matched = sub.colors.filter((c) => todayKeys.has(c));
+  const matched = matchedColors(sub.colors, todayKeys);
   const message = buildMessage(snapshot, matched, sub);
 
   await recordTestSend(phone, [...recent, now]);

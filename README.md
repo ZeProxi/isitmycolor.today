@@ -105,8 +105,8 @@ npx tsx scripts/sns-sandbox.ts verify +18015551234 123456
    - Nameserver changes can take up to 48 hours to propagate; the Amplify domain status page shows progress.
 4. Once the site has a URL, create the schedule:
    `npx tsx scripts/create-schedule.ts https://isitmycolor.today`
-   It creates an EventBridge rule (`wasatch-colors-notify`) that runs every 20 minutes, 06:00-19:40 UTC,
-   which covers midnight through 12:40 pm Mountain time year-round. The page resets at midnight, so early
+   It creates an EventBridge rule (`wasatch-colors-notify`) that runs every 20 minutes, 06:00-00:40 UTC,
+   which covers midnight through about 5 pm Mountain time year-round. The page resets at midnight, so early
    runs capture the new day for the calendar. Each person picks their earliest text hour (1 am to 12 pm,
    default 6 am); the global window `NOTIFY_START_HOUR`..`NOTIFY_END_HOUR` (default 1 am to 9 pm) is a
    floor on top of that.
@@ -184,6 +184,11 @@ toll-free number to get texts back. The compute role needs `sns:ListPhoneNumbers
 `sns:CheckIfPhoneNumberIsOptedOut`.
 
 ## Knowing when it breaks
+
+Subscribers are told too. If today's page still can't be read by 8 am Mountain (`UNREADABLE_NOTICE_HOUR`), or
+by a person's own earliest time if that is later, each subscriber gets one "we couldn't read today's colors,
+check the official page" message, so that silence is never mistaken for "not my color". It doesn't count as
+their daily alert: if the page comes good later, the real alert still goes.
 
 The daily job checks its own result. If the hotline page can't be fetched, parses to no colors, or still
 shows yesterday's date after 7 am Mountain, the owner gets one text and one email per problem per day

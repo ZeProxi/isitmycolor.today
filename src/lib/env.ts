@@ -47,6 +47,13 @@ export const env = {
   get notifyEndHour() {
     return Number(read("NOTIFY_END_HOUR", "21"));
   },
+  /**
+   * Mountain-time hour after which, if today's page still can't be read, subscribers are told so
+   * (so that silence is never mistaken for "not my color").
+   */
+  get unreadableNoticeHour() {
+    return Number(read("UNREADABLE_NOTICE_HOUR", "8"));
+  },
   /** Public URL of the deployed site, no trailing slash. Used for links in texts/emails. */
   get siteUrl() {
     return read("SITE_URL").replace(/\/$/, "");

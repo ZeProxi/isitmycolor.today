@@ -4,10 +4,11 @@
  *
  *   npx tsx scripts/create-schedule.ts https://isitmycolor.today
  *
- * Schedule: every 20 minutes, 06:00-19:40 UTC, which covers 00:00-12:40 Mountain
- * time in both MST and MDT (a little wider in one of them, harmless). The page
- * resets at midnight, so the first runs capture the new day for the history
- * calendar. Each person picks an earliest text hour (1 am-12 pm, default 6 am),
+ * Schedule: every 20 minutes, 06:00-00:40 UTC, which covers midnight through
+ * about 5 pm Mountain time in both MST and MDT (wider in one of them, harmless).
+ * The page resets at midnight, so the first runs capture the new day for the
+ * history calendar; running into the afternoon means a color added late is
+ * still noticed and people are told. Each person picks an earliest text hour (1 am-12 pm, default 6 am),
  * texts go at most once per subscriber per day, and the global
  * NOTIFY_START_HOUR..NOTIFY_END_HOUR window still applies, so extra runs are harmless.
  *
@@ -40,7 +41,7 @@ import { env, awsCredentials } from "../src/lib/env";
 
 const NAME = "wasatch-colors-notify";
 const ROLE_NAME = `${NAME}-scheduler-role`;
-const CRON_UTC = "cron(0/20 6-19 * * ? *)";
+const CRON_UTC = "cron(0/20 0,6-23 * * ? *)";
 
 const siteUrl = process.argv[2]?.replace(/\/$/, "");
 if (!siteUrl || !siteUrl.startsWith("https://")) {
@@ -139,7 +140,7 @@ async function ensureRule(destinationArn: string, roleArn: string) {
       Name: NAME,
       ScheduleExpression: CRON_UTC,
       State: "ENABLED",
-      Description: "Scrape wasatch.org/colors and text subscribers (00:00-12:40 Mountain, expressed in UTC)",
+      Description: "Scrape wasatch.org/colors and alert subscribers (midnight to about 5 pm Mountain, expressed in UTC)",
     }),
   );
   const r = await eb.send(
@@ -158,7 +159,7 @@ async function main() {
   const dest = await ensureDestination(conn);
   const role = await ensureRole(dest);
   await ensureRule(dest, role);
-  console.log("done. Runs every 20 min, 06:00-19:40 UTC (midnight through 12:40 pm Mountain).");
+  console.log("done. Runs every 20 min, 06:00-00:40 UTC (midnight through about 5 pm Mountain).");
 }
 
 main().catch((e) => {

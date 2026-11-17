@@ -1,5 +1,5 @@
 import { fetchColors, type ColorsSnapshot } from "./scrape";
-import { deleteSubscriber, emailOf, listActiveSubscribers, markNotified, saveSnapshot, setSmsStopped, smsOf, DEFAULT_PREFS, type Subscriber } from "./dynamo";
+import { deleteSubscriber, emailOf, getKnownColorKeys, listActiveSubscribers, markNotified, markProblemNotice, saveSnapshot, setSmsStopped, smsOf, DEFAULT_PREFS, type Subscriber } from "./dynamo";
 import { sendSms, listOptedOut } from "./sms";
 import { sendEmail } from "./email";
 import { todayIsoMountain, hourMountain, nowIso } from "./dates";
@@ -10,7 +10,7 @@ import { diagnose, alertOwner } from "./health";
 import { sendPush } from "./push";
 import { deleteAlerts, logAlert, type ChannelStatus } from "./alertlog";
 import { unsubscribeUrl } from "./unsubscribe";
-import { colorInfo } from "./colors";
+import { colorInfo, everyoneCalled, matchedColors, KNOWN_COLORS } from "./colors";
 import { t, isLang, type Lang } from "./i18n";
 import { emailShell, emailText, esc, EMAIL_ACCENT } from "./email-layout";
 import { activeSupporters, stopUrl, textUrl } from "./supporters";
@@ -27,6 +27,8 @@ export type NotifyResult = {
   skipped: { phone: string; reason: string }[];
   /** accounts removed this run because their own auto-stop date had passed */
   expired: string[];
+  /** accounts told this run that today's page couldn't be read */
+  unreadableNotices: string[];
   errors: { phone: string; error: string }[];
 };
 
@@ -196,6 +198,55 @@ async function notifySupporters(snapshot: ColorsSnapshot, matched: string[], sub
 }
 
 /**
+ * "We couldn't read today's colors": sent once per person per day when the
+ * hotline page is down, stuck on another day, or empty, from
+ * UNREADABLE_NOTICE_HOUR (8 am) or the person's own earliest hour, whichever is
+ * later. It does not count as their daily alert, so if the page comes good
+ * later they still get the real one. On those rare days that means two messages.
+ */
+async function sendUnreadableNotices(today: string, hour: number): Promise<string[]> {
+  if (env.siteSunset) return [];
+  if (hour < env.unreadableNoticeHour || hour < env.notifyStartHour || hour >= env.notifyEndHour) return [];
+  const sent: string[] = [];
+  const optedOut = await listOptedOut();
+  for (const sub of await listActiveSubscribers()) {
+    if (sub.lastProblemDate === today || sub.lastNotifiedDate === today) continue; // told already, or already got today's real alert
+    if (hour < (sub.prefs?.earliestHour ?? DEFAULT_PREFS.earliestHour)) continue;
+    if (sub.prefs?.endDate && today > sub.prefs.endDate) continue;
+    const l = langOf(sub);
+    const u = t(l).unreadable;
+    const number = smsOf(sub);
+    const address = sub.emailStopped ? undefined : emailOf(sub);
+    let sms: ChannelStatus | undefined, email: ChannelStatus | undefined, push: ChannelStatus | undefined;
+    if (number && !sub.smsStopped && !optedOut?.has(number)) {
+      sms = await sendSms(number, u.sms).then((r) => (r.dryRun ? "dry-run" : "sent") as ChannelStatus, () => "failed" as ChannelStatus);
+    }
+    if (address) {
+      const unsub = unsubscribeUrl(sub.phone);
+      const { fg, muted, font } = emailText;
+      const body = `      <p style="margin:0;font:700 24px/1.2 ${font};color:${EMAIL_ACCENT}">${esc(u.title)}</p>
+      <p style="margin:12px 0 0;font:16px/1.55 ${font};color:${fg}">${esc(u.body)}</p>
+      <p style="margin:12px 0 0;font:14px/1.55 ${font};color:${muted}">${esc(u.more)}</p>`;
+      const html = emailShell({ lang: l, preheader: u.body, body, footer: `${esc(t(l).emailWhy)} <a href="${esc(unsub)}" style="color:${muted}">${esc(t(l).emailUnsubscribe)}</a>` });
+      email = await sendEmail(address, u.title, `${u.title}. ${u.body}\n\n${u.more}\n\n${t(l).emailUnsubscribe}: ${unsub}`, html, undefined, undefined, unsub).then(
+        (r) => (r.skipped ? "skipped" : r.dryRun ? "dry-run" : "sent") as ChannelStatus,
+        () => "failed" as ChannelStatus,
+      );
+    }
+    if (sub.push?.length) {
+      const pr = await sendPush(sub.phone, sub.push, { title: u.title, body: u.body, url: "/", tag: `problem-${today}` });
+      push = pr.dryRun ? "dry-run" : pr.sent > 0 ? "sent" : "failed";
+    }
+    const went = [sms, email, push].some((v) => v === "sent" || v === "dry-run");
+    if (!went) continue; // nothing reached them: try again on the next run
+    await markProblemNotice(sub.phone, today);
+    await logAlert(sub.phone, { date: today, kind: "notice", colors: [], sms, email, push });
+    sent.push(sub.phone);
+  }
+  return sent;
+}
+
+/**
  * The daily job: scrape the page, record the snapshot, and text every active
  * subscriber who should hear from us today (at most once per day each).
  */
@@ -208,6 +259,7 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
     await alertOwner("fetch_failed", detail);
+    await sendUnreadableNotices(todayIsoMountain(), hour).catch((err) => console.warn("unreadable notices failed", err));
     throw e;
   }
   const problem = diagnose(snapshot, hour);
@@ -228,10 +280,19 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
     notified: [],
     skipped: [],
     expired: [],
+    unreadableNotices: [],
     errors: [],
   };
 
   if (snapshot.date) {
+    // A name the hotline has never used could be a typo or a new spelling of someone's color. People are
+    // matched by exact name, so tell the owner to look. (Must be checked before saving adds it to the list.)
+    if (pageIsForToday && snapshot.colors.length) {
+      const seen = new Set([...KNOWN_COLORS.map((c) => c.key), ...(await getKnownColorKeys().catch(() => [] as string[]))]);
+      const fresh = snapshot.colors.filter((c) => !seen.has(c.key)).map((c) => c.raw);
+      if (fresh.length) await alertOwner("new_color", fresh.join(", ")).catch(() => {});
+      if (everyoneCalled(snapshot.colors.map((c) => c.key))) await alertOwner("all_colors", snapshot.colors.map((c) => c.raw).join(", ")).catch(() => {});
+    }
     const isNew = await saveSnapshot(snapshot);
     // First time we see a new day's page: grab the official screenshot right away.
     if (isNew) await requestScreenshot();
@@ -239,8 +300,15 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
 
   // Wound down: keep recording history, send nothing.
   if (env.siteSunset) return result;
-  // Never text people based on a stale page (e.g. the site still shows yesterday).
-  if (!pageIsForToday && !opts.force) return result;
+  // Today's page isn't usable (still yesterday's, no date, or no colors on it). Nobody is alerted from it,
+  // and once the morning is under way people are told, so silence isn't taken for "not my color".
+  if ((!pageIsForToday || snapshot.colors.length === 0) && !opts.force) {
+    result.unreadableNotices = await sendUnreadableNotices(today, hour).catch((err) => {
+      console.warn("unreadable notices failed", err);
+      return [];
+    });
+    return result;
+  }
   // The page flips at midnight; don't wake people up. Snapshot is already saved above.
   if (!inNotifyWindow && !opts.force) return result;
 
@@ -273,7 +341,7 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
     const smsOff = !!sub.smsStopped;
     const address = sub.emailStopped ? undefined : emailOf(sub);
     const prefs = sub.prefs ?? DEFAULT_PREFS;
-    const matched = sub.colors.filter((c) => todayKeys.has(c));
+    const matched = matchedColors(sub.colors, todayKeys);
     if (matched.length === 0 && prefs.mode !== "daily") {
       result.skipped.push({ phone: sub.phone, reason: "no matching color" });
       continue;
@@ -283,8 +351,13 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
       continue;
     }
     if (sub.lastNotifiedDate === snapshot.date && !opts.force) {
-      result.skipped.push({ phone: sub.phone, reason: "already notified today" });
-      continue;
+      // One alert a day, with one exception: someone already told "not your color" whose color has since
+      // been added to the page gets the correction. Leaving them with the wrong answer is the worse outcome.
+      const correction = matched.length > 0 && sub.lastNotifiedKind === "daily";
+      if (!correction) {
+        result.skipped.push({ phone: sub.phone, reason: "already notified today" });
+        continue;
+      }
     }
     try {
       const message = buildMessage(snapshot, matched, sub);
@@ -330,7 +403,7 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
       const pushWent = push === "dry-run" || (!!push && !push.startsWith("0/"));
       const tried = (number && !smsOff) || address || sub.push?.length;
       if (tried && !smsWent && !emailWent && !pushWent) throw new Error(smsError ?? email ?? "nothing could be delivered");
-      await markNotified(sub.phone, snapshot.date!);
+      await markNotified(sub.phone, snapshot.date!, matched.length ? "match" : "daily");
       // Support people hear only on color days, and only after the holder's own alert has been dealt with.
       if (matched.length) await notifySupporters(snapshot, matched, sub, optedOut);
       result.notified.push({ phone: sub.phone, colors: matched, kind: matched.length ? "match" : "daily", email, smsError, push, ...r });

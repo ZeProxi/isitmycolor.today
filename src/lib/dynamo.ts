@@ -72,6 +72,10 @@ export type Subscriber = {
   updatedAt: string;
   /** YYYY-MM-DD of the last day we texted this subscriber */
   lastNotifiedDate?: string;
+  /** What that alert said: "match" (your color is listed) or "daily" (it isn't). */
+  lastNotifiedKind?: "match" | "daily";
+  /** YYYY-MM-DD of the last day we told them we couldn't read the hotline page. */
+  lastProblemDate?: string;
   /** "en" | "es": language for the text message */
   lang?: string;
   prefs?: AlertPrefs;
@@ -319,13 +323,26 @@ export async function claimDailyMoment(phone: string, date: string): Promise<boo
   }
 }
 
-export async function markNotified(phone: string, date: string) {
+export async function markNotified(phone: string, date: string, kind: "match" | "daily") {
   await (await client()).send(
     new UpdateCommand({
       TableName: env.subscribersTable,
       Key: { phone },
-      UpdateExpression: "SET lastNotifiedDate = :d, updatedAt = :u",
+      UpdateExpression: "SET lastNotifiedDate = :d, lastNotifiedKind = :k, updatedAt = :u",
+      ExpressionAttributeValues: { ":d": date, ":k": kind, ":u": nowIso() },
+    }),
+  );
+}
+
+/** Record that today's "we couldn't read the page" notice went to this person. */
+export async function markProblemNotice(phone: string, date: string) {
+  await (await client()).send(
+    new UpdateCommand({
+      TableName: env.subscribersTable,
+      Key: { phone },
+      UpdateExpression: "SET lastProblemDate = :d, updatedAt = :u",
       ExpressionAttributeValues: { ":d": date, ":u": nowIso() },
+      ConditionExpression: "attribute_exists(phone)",
     }),
   );
 }

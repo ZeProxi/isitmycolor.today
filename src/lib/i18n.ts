@@ -260,6 +260,12 @@ const en = {
     `No colors are listed for today, ${day}. Unofficial tool - confirm at wasatch.org/colors or (385) 268-5002.`,
   smsLink: (url: string) => ` Saved copy of the page: ${url}`,
   emailSubject: { match: "Your color is up today", noMatch: "Not your color today" },
+  unreadable: {
+    sms: "We couldn't get today's colors from the hotline page, so don't rely on us today. Check wasatch.org/colors or call (385) 268-5002. Reply STOP to opt out.",
+    title: "We couldn't read today's colors",
+    body: "Don't rely on us today. Check wasatch.org/colors or call (385) 268-5002.",
+    more: "If the page becomes readable later today, you'll still get your usual alert.",
+  },
   emailLine: {
     match: (mine: string) => `${mine} is on today's list.`,
     noMatch: "None of your colors are on today's list.",
@@ -547,6 +553,7 @@ const en = {
     help: "Mountain Time. Kept for a year; deleted when you stop alerts.",
     test: "Test",
     notYours: "Not your color",
+    notice: "Couldn't read the page",
     sms: "Text",
     email: "Email",
     push: "Push",
@@ -825,6 +832,12 @@ const es: Dict = {
     `Hoy no hay colores publicados, ${day}. Herramienta no oficial: confirma en wasatch.org/colors o al (385) 268-5002.`,
   smsLink: (url: string) => ` Copia guardada de la página: ${url}`,
   emailSubject: { match: "Hoy sale tu color", noMatch: "Hoy no es tu color" },
+  unreadable: {
+    sms: "No pudimos leer los colores de hoy en la página de la línea, así que hoy no dependas de nosotros. Revisa wasatch.org/colors o llama al (385) 268-5002. Responde STOP para darte de baja.",
+    title: "No pudimos leer los colores de hoy",
+    body: "Hoy no dependas de nosotros. Revisa wasatch.org/colors o llama al (385) 268-5002.",
+    more: "Si la página se puede leer más tarde hoy, igual recibirás tu alerta de siempre.",
+  },
   emailLine: {
     match: (mine: string) => `${mine} está en la lista de hoy.`,
     noMatch: "Ninguno de tus colores está en la lista de hoy.",
@@ -1112,6 +1125,7 @@ const es: Dict = {
     help: "Hora de la Montaña. Se guarda un año; se borra al detener las alertas.",
     test: "Prueba",
     notYours: "No es tu color",
+    notice: "No se pudo leer la página",
     sms: "Texto",
     email: "Correo",
     push: "Push",
