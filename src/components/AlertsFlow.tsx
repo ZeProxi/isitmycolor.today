@@ -81,6 +81,13 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
       .catch(() => {});
   }, []);
 
+  // A confirmation ("Saved.") clears itself after a few seconds; an error stays until it's tapped or the next action.
+  useEffect(() => {
+    if (status.kind !== "ok") return;
+    const id = setTimeout(() => setStatus((cur) => (cur === status ? { kind: "idle" } : cur)), 3500);
+    return () => clearTimeout(id);
+  }, [status]);
+
   // Auto-verify as soon as 6 digits are in.
   useEffect(() => {
     if (step === "code" && code.length === 6 && !verifying.current) void verify();
@@ -467,14 +474,16 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
 
         {/* Settings save as you change them; say so wherever the person is on the page. */}
         {status.msg && (
-          <p
+          <button
+            type="button"
             role="status"
-            className={`fixed inset-x-4 bottom-24 z-40 mx-auto max-w-sm rounded-md border bg-ink px-4 py-2.5 text-center text-sm md:bottom-6 ${
+            onClick={() => setStatus({ kind: "idle" })}
+            className={`fixed inset-x-4 bottom-24 z-40 mx-auto block max-w-sm rounded-md border bg-ink px-4 py-2.5 text-center text-sm md:bottom-6 ${
               status.kind === "err" ? "border-danger text-danger" : "border-line-strong text-fg"
             }`}
           >
             {status.msg}
-          </p>
+          </button>
         )}
       </div>
     );
