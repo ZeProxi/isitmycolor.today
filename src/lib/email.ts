@@ -13,8 +13,9 @@ export function isEmail(v: string): boolean {
 }
 
 /**
- * Sends a plain-text email through Amazon SES. Needs EMAIL_FROM to be a verified
- * identity in SES; while SES is in its sandbox, recipients must be verified too.
+ * Sends an email. Goes through Resend when RESEND_API_KEY is set, otherwise
+ * through Amazon SES. Either way EMAIL_FROM must be a sender on a domain
+ * verified with that provider.
  */
 export async function sendEmail(
   to: string,
@@ -31,6 +32,7 @@ export async function sendEmail(
     console.log(`[EMAIL_DRY_RUN] to ${to}: ${subject}\n${text}`);
     return { dryRun: true };
   }
+  if (env.resendApiKey) return sendViaResend(to, subject, text, html, replyTo, from, unsubscribeUrl);
   const r = await ses().send(
     new SendEmailCommand({
       FromEmailAddress: from || env.emailFrom,
@@ -57,4 +59,34 @@ export async function sendEmail(
     }),
   );
   return { messageId: r.MessageId, dryRun: false };
+}
+
+async function sendViaResend(
+  to: string,
+  subject: string,
+  text: string,
+  html?: string,
+  replyTo?: string,
+  from?: string,
+  unsubscribeUrl?: string,
+): Promise<{ messageId?: string; dryRun: boolean }> {
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { authorization: `Bearer ${env.resendApiKey}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      from: from || env.emailFrom,
+      to: [to],
+      subject,
+      text,
+      ...(html ? { html } : {}),
+      ...(replyTo ? { reply_to: replyTo } : {}),
+      ...(unsubscribeUrl
+        ? { headers: { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } }
+        : {}),
+    }),
+  });
+  const body = (await res.json().catch(() => ({}))) as { id?: string; message?: string; name?: string };
+  // Thrown like an SES failure, so callers log it as "failed: ..." the same way.
+  if (!res.ok) throw new Error(`Resend ${res.status}: ${body.message ?? body.name ?? "send failed"}`);
+  return { messageId: body.id, dryRun: false };
 }
