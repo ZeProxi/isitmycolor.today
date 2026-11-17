@@ -6,6 +6,7 @@ import { colorInfo } from "@/lib/colors";
 import { getLang } from "@/lib/lang-server";
 import { t } from "@/lib/i18n";
 import { myColors } from "@/lib/mine";
+import { DayMoment } from "./DayMoment";
 
 function cap(w: string) {
   return w.charAt(0).toUpperCase() + w.slice(1);
@@ -47,8 +48,15 @@ export async function TodayColors() {
     return lang === "es" && i.spanish ? i.spanish : i.english;
   });
 
+  // The once-a-day animation needs today's real list and someone with colors chosen.
+  const firstMine = data.colors.find((c) => matched.includes(c.key));
+  const momentHex = firstMine ? (firstMine.siteBackground ?? colorInfo(firstMine.key, firstMine).hex) : "#edb058";
+
   return (
     <section>
+      {mine.length > 0 && !stale && n > 0 && (
+        <DayMoment kind={matched.length ? "mine" : "clear"} hex={momentHex} ink={firstMine ? colorInfo(firstMine.key, firstMine).text : "#fff"} label={s.yoursUp} clearLabel={t(lang).emailSubject.noMatch} />
+      )}
       <div className="rise flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
         <div>
           <p className="text-sm font-medium text-fg-muted">

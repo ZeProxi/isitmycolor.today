@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useLang } from "./LangProvider";
 import { useAnalyticsTab } from "./HiddenShortcuts";
@@ -22,36 +23,9 @@ export function NavTabs({ placement }: { placement: "top" | "bottom" }) {
   const { s } = useLang();
   const showAnalytics = useAnalyticsTab();
   const tabs = showAnalytics ? [...TABS, ANALYTICS] : [...TABS];
-  // the phone bar has room for five: About lives in the footer there
-  const phoneTabs = tabs.filter((t) => t.key !== "about");
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
-  if (placement === "bottom") {
-    return (
-      <nav
-        aria-label="Primary"
-        className="fixed inset-x-0 bottom-0 z-40 grid border-t border-line bg-ink px-1 pt-1 md:hidden"
-        style={{ gridTemplateColumns: `repeat(${phoneTabs.length}, 1fr)`, paddingBottom: "max(0.25rem, env(safe-area-inset-bottom))" }}
-      >
-        {phoneTabs.map(({ href, key, icon: Icon }) => {
-          const on = isActive(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              aria-current={on ? "page" : undefined}
-              className={`flex flex-col items-center gap-0.5 border-t-2 py-2 text-[11px] ${
-                on ? "border-accent font-semibold text-fg" : "border-transparent font-medium text-fg-muted"
-              }`}
-            >
-              <Icon className="h-5 w-5" />
-              {s.nav[key]}
-            </Link>
-          );
-        })}
-      </nav>
-    );
-  }
+  if (placement === "bottom") return <PhoneBar pathname={pathname} menu={tabs.filter((t) => !PHONE_BAR.some((k) => k === t.key))} />;
 
   return (
     <nav aria-label="Primary" className="hidden items-center gap-5 md:flex">
@@ -71,6 +45,83 @@ export function NavTabs({ placement }: { placement: "top" | "bottom" }) {
         );
       })}
     </nav>
+  );
+}
+
+/** What sits on the phone's bottom bar itself; everything else is one tap away under Menu. */
+const PHONE_BAR = ["today", "alerts"] as const;
+
+type Tab = { href: string; key: "today" | "alerts" | "history" | "official" | "resources" | "about" | "analytics"; icon: (p: { className?: string }) => React.ReactNode };
+
+/**
+ * Phones: Today, Alerts and Menu. Menu opens a sheet above the bar with the
+ * rest of the pages, and closes on a choice, a tap outside, or Escape.
+ */
+function PhoneBar({ pathname, menu }: { pathname: string; menu: readonly Tab[] }) {
+  const { s } = useLang();
+  const [open, setOpen] = useState(false);
+  const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+  const inMenu = menu.some((t) => isActive(t.href));
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  const item = (on: boolean) =>
+    `flex flex-col items-center gap-0.5 border-t-2 py-2 text-[11px] ${on ? "border-accent font-semibold text-fg" : "border-transparent font-medium text-fg-muted"}`;
+
+  return (
+    <div className="md:hidden">
+      {open && <button type="button" aria-label={s.nav.closeMenu} className="fixed inset-0 z-40 bg-black/60" onClick={() => setOpen(false)} />}
+      <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-ink" style={{ paddingBottom: "max(0.25rem, env(safe-area-inset-bottom))" }}>
+        {open && (
+          <ul id="phone-menu" className="absolute inset-x-0 bottom-full border-t border-line bg-ink-2 px-2 py-2">
+            {menu.map(({ href, key, icon: Icon }) => {
+              const on = isActive(href);
+              return (
+                <li key={href}>
+                  <Link
+                    href={href}
+                    aria-current={on ? "page" : undefined}
+                    onClick={() => setOpen(false)}
+                    className={`flex items-center gap-3 rounded-md px-3 py-3.5 text-base ${on ? "bg-white/10 font-semibold text-fg" : "font-medium text-fg"}`}
+                  >
+                    <Icon className="h-5 w-5 text-fg-muted" />
+                    {s.nav[key]}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <div className="grid grid-cols-3 px-1 pt-1">
+          {TABS.filter((t) => PHONE_BAR.some((k) => k === t.key)).map(({ href, key, icon: Icon }) => {
+            const on = isActive(href) && !open;
+            return (
+              <Link key={href} href={href} aria-current={on ? "page" : undefined} onClick={() => setOpen(false)} className={item(on)}>
+                <Icon className="h-5 w-5" />
+                {s.nav[key]}
+              </Link>
+            );
+          })}
+          <button type="button" aria-expanded={open} aria-controls="phone-menu" onClick={() => setOpen((v) => !v)} className={item(open || inMenu)}>
+            <MenuIcon className="h-5 w-5" />
+            {s.nav.menu}
+          </button>
+        </div>
+      </nav>
+    </div>
+  );
+}
+
+function MenuIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
   );
 }
 

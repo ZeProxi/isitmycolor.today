@@ -241,6 +241,28 @@ export async function listActiveSubscribers(): Promise<Subscriber[]> {
   return out;
 }
 
+/**
+ * Marks today's opening animation as shown for this account. Returns true only
+ * for the call that actually claimed it, so it plays once a day across devices.
+ */
+export async function claimDailyMoment(phone: string, date: string): Promise<boolean> {
+  try {
+    await (await client()).send(
+      new UpdateCommand({
+        TableName: env.subscribersTable,
+        Key: { phone },
+        UpdateExpression: "SET momentDate = :d",
+        ConditionExpression: "attribute_exists(phone) AND (attribute_not_exists(momentDate) OR momentDate <> :d)",
+        ExpressionAttributeValues: { ":d": date },
+      }),
+    );
+    return true;
+  } catch (e) {
+    if ((e as { name?: string }).name === "ConditionalCheckFailedException") return false; // already shown today, or no alert
+    throw e;
+  }
+}
+
 export async function markNotified(phone: string, date: string) {
   await (await client()).send(
     new UpdateCommand({

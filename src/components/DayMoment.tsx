@@ -1,0 +1,161 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
+/**
+ * A moment of animation the first time a signed-in person opens the site each
+ * day: a banner drops over the screen with the news, holds for a beat, and
+ * lifts. When one of their colors is listed it is in that color, with a frowning
+ * face. When none is, it is amber with a smiling face, and confetti goes off over it. Purely decorative: it never blocks a tap, is skipped for
+ * people who ask for reduced motion, and the server decides whether today's has
+ * already been shown (once per account).
+ *
+ * Adding ?moment=clear or ?moment=mine to the address plays it on demand.
+ */
+export function DayMoment({ kind, hex, ink = "#fff", label = "", clearLabel = "" }: { kind: "clear" | "mine"; hex: string; ink?: string; label?: string; clearLabel?: string }) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const curtain = useRef<HTMLDivElement>(null);
+  const icon = useRef<SVGSVGElement>(null);
+  const [which, setWhich] = useState<"clear" | "mine" | null>(null);
+
+  // Ask once whether today's moment is still unseen.
+  useEffect(() => {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let alive = true;
+    const forced = new URLSearchParams(location.search).get("moment");
+    if (forced === "clear" || forced === "mine") {
+      const id = setTimeout(() => alive && setWhich(forced), 0);
+      return () => {
+        alive = false;
+        clearTimeout(id);
+      };
+    }
+    fetch("/api/me/moment", { method: "POST" })
+      .then((r) => (r.ok ? r.json() : { play: false }))
+      .then((d) => alive && d.play && setWhich(kind))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [kind]);
+
+  // Then run it: the banner drops, holds, and lifts; good news also gets confetti over the top.
+  useEffect(() => {
+    if (!which || !curtain.current) return;
+    const total = which === "clear" ? CLEAR_MS : MINE_MS;
+    const down = 420 / total; // the drop and the lift take the same time whichever banner it is
+    const drop = curtain.current.animate(
+      [
+        { transform: "translateY(-100%)", offset: 0 },
+        { transform: "translateY(0)", offset: down, easing: "cubic-bezier(0.2, 0.9, 0.3, 1)" },
+        { transform: "translateY(0)", offset: 1 - down * 1.2, easing: "cubic-bezier(0.6, 0, 0.8, 0.2)" },
+        { transform: "translateY(-100%)", offset: 1 },
+      ],
+      { duration: total, fill: "both" },
+    );
+    const move = icon.current?.animate(
+      which === "mine"
+        ? // the frowning face shakes its head, then settles
+          [0, -14, 12, -10, 8, -5, 3, 0].map((x) => ({ transform: `translateX(${x}px)` }))
+        : // the smiling face pops in
+          [{ transform: "scale(0.4)", opacity: 0 }, { transform: "scale(1.15)", opacity: 1, offset: 0.6 }, { transform: "scale(1)", opacity: 1 }],
+      { duration: which === "mine" ? 900 : 520, delay: 380, easing: "ease-in-out", fill: "backwards" },
+    );
+    const stopConfetti = which === "clear" && canvas.current ? play(canvas.current, CLEAR_MS + 400) : () => {};
+    drop.onfinish = () => setTimeout(() => setWhich(null), which === "clear" ? 500 : 0); // let the last confetti fade
+    return () => {
+      drop.cancel();
+      move?.cancel();
+      stopConfetti();
+    };
+  }, [which]);
+
+  if (!which) return null;
+  const mine = which === "mine";
+  return (
+    <>
+      <div
+        ref={curtain}
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-[60] flex flex-col items-center justify-center gap-6 px-6 text-center"
+        style={{ background: mine ? hex : "#edb058", color: mine ? ink : "#131313", transform: "translateY(-100%)" }}
+      >
+        <svg ref={icon} className="h-32 w-32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          {/* a face reads faster than the words: frowning on your day, smiling when it isn't */}
+          <circle cx="12" cy="12" r="9" />
+          <path d="M9 9.5v1M15 9.5v1" strokeWidth="2" />
+          {mine ? <path d="M8.2 16.2c1-1.5 2.3-2.2 3.8-2.2s2.8.7 3.8 2.2" /> : <path d="M8 14c1 1.6 2.4 2.4 4 2.4s3-.8 4-2.4" />}
+        </svg>
+        <p className="display text-5xl font-bold leading-none sm:text-7xl">{mine ? label : clearLabel}</p>
+      </div>
+      {!mine && <canvas ref={canvas} aria-hidden className="pointer-events-none fixed inset-0 z-[61] h-full w-full" />}
+    </>
+  );
+}
+
+/** How long each banner is on screen. Good news stays a little longer, with confetti to watch. */
+const MINE_MS = 3000;
+const CLEAR_MS = 3600;
+
+const CONFETTI = ["#131313", "#f1f1ee", "#2f6fd0", "#1f9d57", "#e5484d", "#8e4ec6"];
+
+type Piece = { x: number; y: number; vx: number; vy: number; w: number; h: number; rot: number; spin: number; color: string };
+
+/** Throws confetti on the canvas and returns a function that stops it early. */
+function play(canvas: HTMLCanvasElement, DURATION: number): () => void {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return () => {};
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const W = window.innerWidth;
+  const H = window.innerHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  ctx.scale(dpr, dpr);
+
+  const rnd = (a: number, b: number) => a + Math.random() * (b - a);
+  const count = Math.round(Math.min(160, Math.max(70, W / 6)));
+  // thrown up from the two bottom corners, then it flutters down
+  const pieces: Piece[] = Array.from({ length: count }, (_, i) => {
+    const left = i % 2 === 0;
+    return {
+      x: left ? rnd(-10, W * 0.15) : rnd(W * 0.85, W + 10),
+      y: H + rnd(0, 20),
+      vx: (left ? 1 : -1) * rnd(2, 9),
+      vy: -rnd(H / 55, H / 32),
+      w: rnd(6, 11),
+      h: rnd(8, 16),
+      rot: rnd(0, Math.PI * 2),
+      spin: rnd(-0.25, 0.25),
+      color: CONFETTI[i % CONFETTI.length],
+    };
+  });
+
+  const t0 = performance.now();
+  let frame = 0;
+  const tick = (now: number) => {
+    const t = now - t0;
+    ctx.clearRect(0, 0, W, H);
+    ctx.globalAlpha = Math.max(0, Math.min(1, (DURATION - t) / 600)); // fade out over the last 600 ms
+    for (const p of pieces) {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.32; // gravity
+      p.vx *= 0.99;
+      p.rot += p.spin;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      const flip = Math.cos(p.rot * 2); // pieces flip as they fall
+      ctx.fillRect(-p.w / 2, (-p.h / 2) * flip, p.w, p.h * flip);
+      ctx.restore();
+    }
+    if (t < DURATION) frame = requestAnimationFrame(tick);
+    else ctx.clearRect(0, 0, W, H);
+  };
+  frame = requestAnimationFrame(tick);
+  return () => {
+    cancelAnimationFrame(frame);
+    ctx.clearRect(0, 0, W, H);
+  };
+}
