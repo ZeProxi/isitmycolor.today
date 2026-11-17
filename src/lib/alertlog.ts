@@ -38,18 +38,27 @@ export async function logAlert(phone: string, entry: Omit<AlertEntry, "at">): Pr
   }
 }
 
-export async function listAlerts(phone: string, limit = 60): Promise<AlertEntry[]> {
+/**
+ * One page of someone's alerts, newest first. `before` is the `at` of the last
+ * entry already shown; `more` says whether older ones remain.
+ */
+export async function listAlerts(phone: string, limit = 10, before?: string): Promise<{ alerts: AlertEntry[]; more: boolean }> {
   await ready();
   const r = await docClient().send(
     new QueryCommand({
       TableName: env.historyTable,
-      KeyConditionExpression: "pk = :pk",
-      ExpressionAttributeValues: { ":pk": `ALERT#${phone}` },
+      KeyConditionExpression: before ? "pk = :pk AND sk < :b" : "pk = :pk",
+      ExpressionAttributeValues: before ? { ":pk": `ALERT#${phone}`, ":b": before } : { ":pk": `ALERT#${phone}` },
       ScanIndexForward: false,
-      Limit: limit,
+      Limit: limit + 1, // one extra, only to learn whether there is another page
     }),
   );
-  return (r.Items ?? []).map((i) => ({
+  const items = r.Items ?? [];
+  return { more: items.length > limit, alerts: items.slice(0, limit).map(toEntry) };
+}
+
+function toEntry(i: Record<string, unknown>): AlertEntry {
+  return {
     at: i.at as string,
     date: i.date as string,
     kind: i.kind as AlertEntry["kind"],
@@ -57,7 +66,7 @@ export async function listAlerts(phone: string, limit = 60): Promise<AlertEntry[
     sms: i.sms as ChannelStatus | undefined,
     email: i.email as ChannelStatus | undefined,
     push: i.push as ChannelStatus | undefined,
-  }));
+  };
 }
 
 /** Forget someone's alert history (called when they stop alerts). */

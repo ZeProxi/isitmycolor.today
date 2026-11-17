@@ -21,6 +21,14 @@ export default function ColorPage({ params }: PageProps<"/color/[key]">) {
   );
 }
 
+/** How many of the latest dates get a full-size button. */
+const RECENT = 5;
+
+function prevMonth(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+}
+
 const fmt1 = (n: number) => (Math.round(n * 10) / 10).toString();
 
 async function ColorContent({ params }: { params: PageProps<"/color/[key]">["params"] }) {
@@ -47,6 +55,14 @@ async function ColorContent({ params }: { params: PageProps<"/color/[key]">["par
   const other = lang === "es" ? info.english : info.spanish;
 
   const dates = a.days.filter((d) => d.colors.includes(key)).map((d) => d.date); // newest first
+  const listed = new Set(dates);
+  const recorded = new Set(a.days.map((d) => d.date));
+  // every month from the first one on record to this one, newest first, grouped by year
+  const months: string[] = [];
+  for (let m = today.slice(0, 7); a.firstDate && m >= a.firstDate.slice(0, 7); m = prevMonth(m)) months.push(m);
+  const years = Array.from(
+    months.reduce((map, m) => map.set(m.slice(0, 4), [...(map.get(m.slice(0, 4)) ?? []), m]), new Map<string, string[]>()),
+  );
   const listedToday = stat?.lastDate === today;
   const maxWeekday = Math.max(1, ...(stat?.byWeekday ?? [0]));
   const weekdays = dict.history.weekdays;
@@ -104,15 +120,50 @@ async function ColorContent({ params }: { params: PageProps<"/color/[key]">["par
 
           <section>
             <h2 className="text-2xl font-bold">{s.datesTitle}</h2>
-            <ul className="mt-4 flex flex-wrap gap-2">
-              {dates.map((d) => (
+
+            {/* the last few as buttons (easy to tap), then every recorded month as one compact row */}
+            <p className="mt-4 text-xs font-semibold uppercase tracking-[0.08em] text-fg-faint">{s.recent}</p>
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {dates.slice(0, RECENT).map((d) => (
                 <li key={d}>
-                  <Link href={`/day/${d}`} className="btn-ghost px-3 py-1.5 text-sm capitalize">
+                  <Link href={`/day/${d}`} className="btn-ghost px-3 py-1.5 text-sm first-letter:uppercase">
                     {longDateMountain(d, lang)}
                   </Link>
                 </li>
               ))}
             </ul>
+
+            <div className="panel mt-5 rounded-lg p-4 sm:p-5">
+              {years.map(([year, months], yi) => {
+                const grid = (
+                  <div className="space-y-1">
+                    {months.map((m) => (
+                      <MonthRow key={m} month={m} listed={listed} recorded={recorded} hex={hex} today={today} locale={lang === "es" ? "es-US" : "en-US"} />
+                    ))}
+                  </div>
+                );
+                // this year stays open; earlier years fold away so the page doesn't grow forever
+                return yi === 0 ? (
+                  <div key={year}>
+                    <p className="mb-2 text-sm font-semibold">{year}</p>
+                    {grid}
+                  </div>
+                ) : (
+                  <details key={year} className="mt-4 border-t border-line pt-3">
+                    <summary className="cursor-pointer select-none text-sm font-semibold">{s.earlier(year)}</summary>
+                    <div className="mt-2">{grid}</div>
+                  </details>
+                );
+              })}
+              <p className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-fg-muted">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-[2px]" style={{ background: hex }} /> {s.legendListed}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-[2px] bg-white/10" /> {s.legendNot}
+                </span>
+              </p>
+            </div>
           </section>
         </>
       )}
@@ -136,5 +187,29 @@ function Stat({ label, value, sub, href }: { label: string; value: string; sub?:
     </Link>
   ) : (
     <div className="panel rounded-md p-4">{body}</div>
+  );
+}
+
+/**
+ * One month as a strip of 31 small squares, one per day: filled with the color
+ * on days it was listed (and linked to that day's page), dim on days that were
+ * recorded without it, empty where nothing was recorded.
+ */
+function MonthRow({ month, listed, recorded, hex, today, locale }: { month: string; listed: Set<string>; recorded: Set<string>; hex: string; today: string; locale: string }) {
+  const [y, m] = month.split("-").map(Number);
+  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const label = new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(locale, { month: "short", timeZone: "UTC" });
+  return (
+    <div className="grid items-center gap-[2px]" style={{ gridTemplateColumns: "2.25rem repeat(31, minmax(0, 1fr))" }}>
+      <span className="text-xs capitalize text-fg-muted">{label}</span>
+      {Array.from({ length: 31 }, (_, i) => {
+        const date = `${month}-${String(i + 1).padStart(2, "0")}`;
+        if (i >= daysInMonth || date > today) return <span key={i} />;
+        if (listed.has(date)) {
+          return <Link key={i} href={`/day/${date}`} title={date} aria-label={date} className="aspect-square rounded-[2px] hover:outline hover:outline-2 hover:outline-fg" style={{ background: hex }} />;
+        }
+        return <span key={i} title={date} className={`aspect-square rounded-[2px] ${recorded.has(date) ? "bg-white/10" : "border border-white/5"}`} />;
+      })}
+    </div>
   );
 }

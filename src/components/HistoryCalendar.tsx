@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { ColorsSnapshot } from "@/lib/scrape";
 import { colorInfo } from "@/lib/colors";
 import { t, type Lang } from "@/lib/i18n";
+import { longDateMountain } from "@/lib/dates";
+import { HistoryMobile } from "./HistoryMobile";
 
 function shiftMonth(month: string, delta: number): string {
   const [y, m] = month.split("-").map(Number);
@@ -126,50 +128,26 @@ export function HistoryCalendar({
         </div>
       </div>
 
-      {/* phones: a readable list instead of the grid */}
-      <ol className="mt-4 space-y-2 sm:hidden">
-        {days.length === 0 && <li className="panel rounded-md px-4 py-3 text-sm text-fg-muted">{s.noneThisMonth}</li>}
-        {days
-          .filter((d) => d.date)
-          .slice()
-          .reverse()
-          .map((d) => {
-            const date = d.date as string;
-            const isToday = date === today;
-            return (
-              <li key={date}>
-                <Link
-                  href={`/day/${date}`}
-                  className={`panel flex items-center gap-3 rounded-md px-4 py-3 ${isToday ? "ring-2 ring-accent" : ""}`}
-                >
-                  <span className="w-14 shrink-0">
-                    <span className="block text-lg font-bold leading-none">{Number(date.slice(-2))}</span>
-                    <span className="block text-xs text-fg-muted">{WEEKDAYS[new Date(date + "T12:00:00Z").getUTCDay()]}</span>
-                  </span>
-                  <span className="flex flex-1 flex-wrap gap-1.5">
-                    {d.colors.length === 0 && <span className="text-sm text-fg-muted">{s.none}</span>}
-                    {d.colors.map((c) => {
-                      const info = colorInfo(c.key, c);
-                      const isMine = mine.includes(c.key);
-                      return (
-                        <span
-                          key={c.raw}
-                          className={`rounded-sm px-2.5 py-1 text-sm font-bold ${isMine ? "ring-2 ring-white" : ""}`}
-                          style={{ background: c.siteBackground ?? info.hex, color: info.text }}
-                        >
-                          <span className="relative capitalize">{lang === "es" ? c.spanish || c.english : c.english}</span>
-                        </span>
-                      );
-                    })}
-                  </span>
-                  <svg className="h-4 w-4 shrink-0 text-fg-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M9 6l6 6-6 6" />
-                  </svg>
-                </Link>
-              </li>
-            );
-          })}
-      </ol>
+      {/* phones: a compact calendar; tapping a day spells it out underneath */}
+      <HistoryMobile
+        key={month}
+        cells={cells}
+        today={today}
+        weekdays={WEEKDAYS}
+        labels={{ none: s.noColors, open: s.openDay, nothing: s.noneThisMonth }}
+        days={Object.fromEntries(
+          Array.from(byDate, ([date, snap]) => [
+            date,
+            {
+              label: longDateMountain(date, lang),
+              colors: snap.colors.map((c) => {
+                const info = colorInfo(c.key, c);
+                return { key: c.key, name: lang === "es" ? c.spanish || c.english : c.english, hex: c.siteBackground ?? info.hex, text: info.text, mine: mine.includes(c.key) };
+              }),
+            },
+          ]),
+        )}
+      />
     </section>
   );
 }

@@ -52,7 +52,7 @@ async function HistoryContent({ searchParams }: { searchParams: PageProps<"/hist
       )}
       <HistoryCalendar month={month} days={days} today={today} lang={lang} mine={mine} firstMonth={firstMonth} />
       {days.length > 0 && (
-        <a className="btn-ghost text-sm" href={`/api/history/export?month=${month}`} download>
+        <a className="btn-ghost hidden text-sm sm:inline-flex" href={`/api/history/export?month=${month}`} download>
           {s.downloadCsv}
         </a>
       )}
