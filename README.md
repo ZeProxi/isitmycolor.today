@@ -209,6 +209,17 @@ MIT, see `LICENSE`. The owner's About section and portraits are not part of the 
 
 ## Data
 
+Turn on point-in-time recovery and deletion protection for both tables, and versioning on the screenshot
+bucket; none of it is on by default and together it costs next to nothing at this size:
+
+```bash
+aws dynamodb update-continuous-backups --table-name <table> --point-in-time-recovery-specification PointInTimeRecoveryEnabled=true
+aws dynamodb update-table --table-name <table> --deletion-protection-enabled
+aws s3api put-bucket-versioning --bucket <bucket> --versioning-configuration Status=Enabled
+```
+
+Recovery keeps 35 days, so a deleted subscriber stays restorable for that long; the privacy page says so.
+
 - `wasatch-colors-subscribers` (pk `phone`): `{ phone, sms?, email?, emailVerified?, colors[], lang, prefs, active, lastNotifiedDate }`.
   `phone` is the account id, not necessarily a number: an E.164 phone, `email:<address>`, or `acct:<uuid>`.
   The contacts are `sms` and `email`; read them with `smsOf()` / `emailOf()` in `src/lib/dynamo.ts`.
