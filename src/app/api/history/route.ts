@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
     }
     return Response.json({ days: await listRecentSnapshots(30) }, { headers: { "cache-control": "public, max-age=60, s-maxage=300" } });
   } catch (e) {
-    return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+    console.error("history failed", e);
+    return Response.json({ error: "Couldn't load history" }, { status: 500 });
   }
 }

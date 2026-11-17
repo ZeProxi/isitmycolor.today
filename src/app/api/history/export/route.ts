@@ -6,7 +6,9 @@ export async function GET(req: NextRequest) {
   const month = req.nextUrl.searchParams.get("month") ?? "";
   if (!/^\d{4}-\d{2}$/.test(month)) return new Response("Bad month", { status: 400 });
   const days = await listMonthSnapshots(month);
-  const q = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  // The notice text comes from another site. A cell beginning with = + - or @ would be run as a formula
+  // by a spreadsheet, so those get a leading apostrophe, which spreadsheets show as plain text.
+  const q = (v: string) => `"${(/^[=+\-@\t\r]/.test(v) ? `'${v}` : v).replace(/"/g, '""')}"`;
   const rows = [
     ["date", "weekday", "colors", "colors_spanish", "notice", "read_at_utc"].join(","),
     ...days.map((d) => {

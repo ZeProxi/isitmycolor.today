@@ -312,6 +312,14 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
   // The page flips at midnight; don't wake people up. Snapshot is already saved above.
   if (!inNotifyWindow && !opts.force) return result;
 
+  // The page was read by the backup method: the colors found are real, but some may have been missed.
+  // So a match is still announced, but nobody is told "not your color" from it; those people get the
+  // "check the official page" notice instead. The owner is told the reader needs updating.
+  const partial = snapshot.layout === "fallback";
+  if (partial) {
+    await alertOwner("layout_changed", `found ${snapshot.colors.map((c) => c.raw).join(", ")} for ${snapshot.dateText}`).catch(() => {});
+  }
+
   const todayKeys = new Set(snapshot.colors.map((c) => c.key));
   const subscribers = await listActiveSubscribers();
   result.subscribersChecked = subscribers.length;
@@ -342,8 +350,8 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
     const address = sub.emailStopped ? undefined : emailOf(sub);
     const prefs = sub.prefs ?? DEFAULT_PREFS;
     const matched = matchedColors(sub.colors, todayKeys);
-    if (matched.length === 0 && prefs.mode !== "daily") {
-      result.skipped.push({ phone: sub.phone, reason: "no matching color" });
+    if (matched.length === 0 && (prefs.mode !== "daily" || partial)) {
+      result.skipped.push({ phone: sub.phone, reason: partial ? "no match on a partial reading" : "no matching color" });
       continue;
     }
     if (hour < prefs.earliestHour && !opts.force) {
@@ -411,6 +419,12 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
     } catch (e) {
       result.errors.push({ phone: sub.phone, error: e instanceof Error ? e.message : String(e) });
     }
+  }
+  if (partial && !opts.force) {
+    result.unreadableNotices = await sendUnreadableNotices(today, hour).catch((err) => {
+      console.warn("unreadable notices failed", err);
+      return [];
+    });
   }
   return result;
 }

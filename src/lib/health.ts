@@ -18,7 +18,7 @@ import type { ColorsSnapshot } from "./scrape";
  * Owner contacts come from SSM: OWNER_PHONE (E.164) and OWNER_EMAIL. The owner is told by text,
  * by email, and by a notification on any device their own account on the site has turned on.
  */
-export type HealthProblem = "fetch_failed" | "no_colors" | "stale_page" | "new_color" | "all_colors" | "email_quota";
+export type HealthProblem = "fetch_failed" | "no_colors" | "stale_page" | "new_color" | "all_colors" | "email_quota" | "layout_changed";
 
 const SUBJECT: Record<HealthProblem, string> = {
   fetch_failed: "couldn't reach the hotline page",
@@ -27,6 +27,7 @@ const SUBJECT: Record<HealthProblem, string> = {
   new_color: "new color name on the page",
   all_colors: "page calls all colors",
   email_quota: "email allowance used up",
+  layout_changed: "hotline page layout changed",
 };
 
 const STALE_AFTER_HOUR = 7; // Mountain time; the page normally flips at midnight
@@ -54,7 +55,9 @@ export async function alertOwner(problem: HealthProblem, detail: string): Promis
       ? `isitmycolor.today: the hotline listed a color name it has never used before: ${detail}. People are alerted by exact name, so check it isn't a typo or a new spelling of an existing color.`
       : problem === "all_colors"
         ? `isitmycolor.today: the hotline page says "${detail}", which was read as everyone being called. Every subscriber is being alerted. Check the page.`
-        : problem === "email_quota"
+        : problem === "layout_changed"
+          ? `isitmycolor.today: the hotline page no longer has the structure the reader was written for. It was read by a backup method (${detail}), which may miss colors. People whose color was found are being alerted; everyone else is being told to check the official page. The reader needs updating.`
+          : problem === "email_quota"
           ? `isitmycolor.today: the email provider says the sending allowance is used up (${detail}). Alert emails and sign-in codes will fail until it resets. Texts and device notifications are not affected.`
         : `isitmycolor.today check failed (${problem}): ${detail}. Subscribers were not texted.`;
   // Every channel the owner has, each on its own: one failing never stops the others.

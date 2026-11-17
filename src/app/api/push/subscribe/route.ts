@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { currentAccount } from "@/lib/auth";
-import { addPushSubscription, removePushSubscription } from "@/lib/push";
+import { addPushSubscription, isPushEndpoint, removePushSubscription } from "@/lib/push";
 
 const unauthorized = () => Response.json({ error: "unauthorized" }, { status: 401 });
 
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
   const s = body.subscription;
-  if (!s?.endpoint || !s.keys?.p256dh || !s.keys?.auth || !/^https:\/\//.test(s.endpoint)) {
+  if (!s?.endpoint || !s.keys?.p256dh || !s.keys?.auth || !isPushEndpoint(s.endpoint) || s.endpoint.length > 1000) {
     return Response.json({ error: "invalid_subscription" }, { status: 400 });
   }
   const devices = await addPushSubscription(

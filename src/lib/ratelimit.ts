@@ -56,3 +56,15 @@ export function clientIp(req: Request): string {
 }
 
 export const today = () => todayIsoMountain();
+
+/**
+ * One shared daily budget for every email that isn't an alert: sign-in codes,
+ * support-person invitations and contact-form messages. The email provider's
+ * allowance is per UTC day and alerts draw on the same one, so everything a
+ * visitor can trigger is held well under it. Whatever anyone does on the site,
+ * the morning's alerts keep their share.
+ */
+export async function allowNonAlertEmail(): Promise<boolean> {
+  const utcDay = new Date().toISOString().slice(0, 10);
+  return allow(`mail:nonalert:${utcDay}`, env.emailCodeDailyCap, 86400);
+}

@@ -55,7 +55,7 @@ export async function TodayColors() {
 
   return (
     <section>
-      {mine.length > 0 && !stale && n > 0 && (
+      {mine.length > 0 && !stale && n > 0 && data.layout !== "fallback" && (
         <DayMoment kind={matched.length ? "mine" : "clear"} hex={momentHex} ink={firstMine ? colorInfo(firstMine.key, firstMine).text : "#fff"} label={s.yoursUp} clearLabel={t(lang).emailSubject.noMatch} />
       )}
       <div className="rise flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
@@ -66,7 +66,7 @@ export async function TodayColors() {
           <h1 className="mt-1 text-3xl font-bold sm:text-4xl">
             {matched.length ? s.yoursUp : n === 0 ? s.noColors : n === 1 ? s.oneColor : s.nColors(n)}
           </h1>
-          {mine.length > 0 && matched.length === 0 && n > 0 && (
+          {mine.length > 0 && matched.length === 0 && n > 0 && data.layout !== "fallback" && (
             <p className="mt-2 text-sm text-fg-muted">{s.notYours(mineNames.join(", "))}</p>
           )}
         </div>
@@ -74,6 +74,14 @@ export async function TodayColors() {
       </div>
 
       {stale && <p className="panel mt-4 rounded-md px-4 py-3 text-sm text-fg">{s.stale(data.dateText)}</p>}
+      {data.layout === "fallback" && (
+        <p className="mt-4 rounded-md border border-amber-300/40 bg-amber-300/15 px-4 py-3 text-sm text-fg">
+          {s.partial}{" "}
+          <a className="font-semibold underline" href="https://wasatch.org/colors/">
+            wasatch.org/colors
+          </a>
+        </p>
+      )}
 
       {n > 0 && (
         <div

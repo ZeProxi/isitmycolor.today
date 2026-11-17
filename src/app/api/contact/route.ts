@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { sendEmail, isEmail } from "@/lib/email";
-import { allow, clientIp, today } from "@/lib/ratelimit";
+import { allow, allowNonAlertEmail, clientIp, today } from "@/lib/ratelimit";
 import { env } from "@/lib/env";
 import { ready } from "@/lib/config";
 
@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
   const ip = clientIp(req);
   if (!(await allow(`contact:ip:${ip}`, 3, 3600))) return Response.json({ error: "rate_limited" }, { status: 429 });
   if (!(await allow(`contact:day:${today()}`, 50, 86400))) return Response.json({ error: "rate_limited" }, { status: 429 });
+  if (!(await allowNonAlertEmail())) return Response.json({ error: "rate_limited" }, { status: 429 });
 
   const text = [
     `From: ${name || "(no name)"} <${from}>`,

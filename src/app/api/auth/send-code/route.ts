@@ -1,9 +1,8 @@
 import type { NextRequest } from "next/server";
 import { parseContact } from "@/lib/contact";
 import { sendCode } from "@/lib/auth";
-import { allow, clientIp, today } from "@/lib/ratelimit";
+import { allow, allowNonAlertEmail, clientIp, today } from "@/lib/ratelimit";
 import { getLang } from "@/lib/lang-server";
-import { env } from "@/lib/env";
 import { ready } from "@/lib/config";
 
 /** POST { phone } or { email } -> sends a 6-digit code there (text or email) */
@@ -25,7 +24,7 @@ export async function POST(req: NextRequest) {
 
   // Emailed codes share a daily allowance with the alerts themselves. Codes stop first, so a burst of
   // sign-ups can't use up what tomorrow morning's alerts need.
-  if (contact.kind === "email" && !(await allow(`codes:email:${today()}`, env.emailCodeDailyCap, 86400))) {
+  if (contact.kind === "email" && !(await allowNonAlertEmail())) {
     return Response.json({ error: "quota" }, { status: 503 });
   }
 

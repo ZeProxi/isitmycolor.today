@@ -4,7 +4,7 @@ import { emailOf, getSubscriber } from "@/lib/dynamo";
 import { isEmail, sendEmail, EmailQuotaError } from "@/lib/email";
 import { supporterInviteEmail } from "@/lib/email-layout";
 import { confirmUrl, removeSupporter, saveSupporters, supportersForHolder, MAX_SUPPORTERS, type Supporter } from "@/lib/supporters";
-import { allow } from "@/lib/ratelimit";
+import { allow, allowNonAlertEmail } from "@/lib/ratelimit";
 import { isLang } from "@/lib/i18n";
 import { nowIso } from "@/lib/dates";
 
@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
   if (!existing && list.length >= MAX_SUPPORTERS) return Response.json({ error: "too_many" }, { status: 400 });
   // Invitations are email to someone who hasn't asked for it: keep them rare.
   if (!(await allow(`invite:${session.id}`, 4, 86400))) return Response.json({ error: "rate_limited" }, { status: 429 });
+  if (existing?.status !== "active" && !(await allowNonAlertEmail())) return Response.json({ error: "quota" }, { status: 503 });
 
   const next: Supporter[] = existing ? list : [...list, { email, status: "invited", invitedAt: nowIso() }];
   await saveSupporters(session.id, next, name);

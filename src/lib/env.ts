@@ -62,8 +62,9 @@ export const env = {
       .filter(Boolean);
   },
   /**
-   * How many sign-in codes may go out by email per day, site-wide. Kept well under the email
-   * provider's daily allowance so codes can never crowd out alerts.
+   * How many non-alert emails (sign-in codes, invitations, contact-form messages) may go out per
+   * UTC day, site-wide. Kept well under the email provider's daily allowance so nothing a visitor
+   * can trigger crowds out alerts.
    */
   get emailCodeDailyCap() {
     return Number(read("EMAIL_CODE_DAILY_CAP", "40"));

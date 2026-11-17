@@ -14,6 +14,22 @@ import { nowIso } from "./dates";
 
 export type StoredPush = { endpoint: string; keys: { p256dh: string; auth: string }; addedAt: string; ua?: string };
 
+/**
+ * Browsers hand out push endpoints on a small set of hosts run by the browser
+ * makers. The server sends requests to whatever endpoint is stored, so anything
+ * else is refused: otherwise a signed-in person could point it at a URL of their
+ * choosing and have this server call it.
+ */
+const PUSH_HOSTS = [/^(fcm|android)\.googleapis\.com$/, /(^|\.)push\.services\.mozilla\.com$/, /(^|\.)notify\.windows\.com$/, /(^|\.)push\.apple\.com$/];
+export function isPushEndpoint(endpoint: string): boolean {
+  try {
+    const u = new URL(endpoint);
+    return u.protocol === "https:" && !u.username && !u.port && PUSH_HOSTS.some((h) => h.test(u.hostname));
+  } catch {
+    return false;
+  }
+}
+
 let configured = false;
 function configure(): boolean {
   if (!env.vapidPublicKey || !env.vapidPrivateKey) return false;
@@ -68,6 +84,10 @@ export async function sendPush(
   let sent = 0;
   const dead: string[] = [];
   for (const s of subs) {
+    if (!isPushEndpoint(s.endpoint)) {
+      dead.push(s.endpoint); // stored before the host check existed: drop it
+      continue;
+    }
     try {
       await webpush.sendNotification({ endpoint: s.endpoint, keys: s.keys }, JSON.stringify(payload), { TTL: 6 * 3600 });
       sent++;
