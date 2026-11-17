@@ -32,9 +32,11 @@ export async function POST(req: NextRequest) {
   if (!r.ok) return Response.json({ error: r.error }, { status: 401 });
 
   const session = await currentSession();
-  const out = session ? await link(session, contact) : await signIn(contact);
+  const consentAt = contact.kind === "sms" ? r.consentAt : undefined;
+  const out = session ? await link(session, contact, consentAt) : await signIn(contact);
 
-  (await cookies()).set(SESSION_COOKIE, makeSessionToken(out.id, out.contacts), sessionCookieOptions());
+  // Until the alert row exists, the moment they agreed to texts rides in the signed session.
+  (await cookies()).set(SESSION_COOKIE, makeSessionToken(out.id, out.contacts, consentAt ?? session?.smsConsentAt), sessionCookieOptions());
   const subscriber = await getSubscriber(out.id);
   // Someone with no alert of their own who is a support person for somebody: tell the page, so it can say so.
   const supporting = !subscriber && out.contacts.email ? await supportingFor(out.contacts.email).catch(() => []) : [];
@@ -53,7 +55,7 @@ async function signIn(contact: Contact): Promise<Outcome> {
   return { id, contacts, merged: false };
 }
 
-async function link(session: Session, contact: Contact): Promise<Outcome> {
+async function link(session: Session, contact: Contact, consentAt?: string): Promise<Outcome> {
   const contacts: Contacts = { ...session.contacts, [contact.kind]: contact.value };
   const me = await getSubscriber(session.id);
   const other = await findAccountByContact(contact);
@@ -61,24 +63,24 @@ async function link(session: Session, contact: Contact): Promise<Outcome> {
   if (other && me && other.phone !== me.phone) {
     await mergeAccounts(me, other);
     await deleteAlerts(other.phone);
-    await setContact(me.phone, contact);
+    await setContact(me.phone, contact, consentAt);
     return { id: me.phone, contacts, merged: true };
   }
   if (other && !me) {
     // Still signing up, and the second contact already has an alert: carry on as that account.
-    await addMissing(other, session.contacts);
+    await addMissing(other, session.contacts, session.smsConsentAt);
     return { id: other.phone, contacts, merged: true };
   }
   if (me) {
-    await setContact(me.phone, contact);
+    await setContact(me.phone, contact, consentAt);
     return { id: me.phone, contacts, merged: false };
   }
   return { id: session.id, contacts, merged: false }; // no alert yet: remembered in the cookie until it's created
 }
 
 /** Give an existing account the contacts this session proved, where it has none of that kind. */
-async function addMissing(account: Subscriber, proven: Contacts) {
+async function addMissing(account: Subscriber, proven: Contacts, smsConsentAt?: string) {
   const has = contactsOf(account);
-  if (proven.sms && !has.sms) await setContact(account.phone, { kind: "sms", value: proven.sms });
+  if (proven.sms && !has.sms) await setContact(account.phone, { kind: "sms", value: proven.sms }, smsConsentAt);
   if (proven.email && !has.email) await setContact(account.phone, { kind: "email", value: proven.email });
 }

@@ -46,6 +46,9 @@ export type AlertPrefs = {
   endDate?: string;
 };
 
+/** Version of the "I agree to receive automated text alerts" wording. Bump it when that wording changes. */
+export const SMS_CONSENT_VERSION = 1;
+
 /** Bump when the agreement wording changes materially; people will be asked again. */
 export const AGREEMENT_VERSION = 1;
 
@@ -63,6 +66,8 @@ export type Subscriber = {
   /** Verified mobile number texts go to. "" means it was removed; undefined on older rows, where the id is the number. */
   sms?: string;
   email?: string;
+  /** When the person ticked "I agree to receive automated text alerts" for the number in `sms`, and which wording. */
+  smsConsent?: { at: string; version: number };
   /** true once the person proved the address with a code. Unverified addresses are never emailed. */
   emailVerified?: boolean;
   /** normalized color keys, e.g. ["green", "blue"] */
@@ -99,7 +104,7 @@ export type Subscriber = {
   /** What the account holder is called in emails to their support people, e.g. "Sam". */
   name?: string;
   /** People who get an email on this person's color days. See supporters.ts. */
-  supporters?: { email: string; status: "invited" | "active"; invitedAt: string; confirmedAt?: string; sms?: string }[];
+  supporters?: { email: string; status: "invited" | "active"; invitedAt: string; confirmedAt?: string; sms?: string; smsConsentAt?: string }[];
   /** Who owns this row once auth is added (Cognito sub). Unused for now. */
   ownerId?: string;
 };
@@ -136,6 +141,8 @@ export async function upsertSubscriber(input: {
   agree?: boolean;
   /** used only when the row doesn't exist yet */
   contacts?: Contacts;
+  /** when they agreed to texts, if a number is among those contacts */
+  smsConsentAt?: string;
 }): Promise<Subscriber> {
   const existing = await getSubscriber(input.phone);
   const now = nowIso();
@@ -144,6 +151,7 @@ export async function upsertSubscriber(input: {
     ...(existing ?? {
       phone: input.phone,
       sms: input.contacts?.sms,
+      smsConsent: input.contacts?.sms && input.smsConsentAt ? { at: input.smsConsentAt, version: SMS_CONSENT_VERSION } : undefined,
       email: input.contacts?.email,
       emailVerified: input.contacts?.email ? true : undefined,
       active: true,
@@ -185,14 +193,18 @@ export async function findAccountByContact(c: Contact): Promise<Subscriber | nul
 }
 
 /** Attach a contact the person just proved with a code. Clears any "stopped" flag for that channel. */
-export async function setContact(id: string, c: Contact) {
+export async function setContact(id: string, c: Contact, smsConsentAt?: string) {
+  const consent = c.kind === "sms" && smsConsentAt ? { at: smsConsentAt, version: SMS_CONSENT_VERSION } : null;
   await (await client()).send(
     new UpdateCommand({
       TableName: env.subscribersTable,
       Key: { phone: id },
       UpdateExpression:
-        c.kind === "sms" ? "SET sms = :v, updatedAt = :u REMOVE smsStopped" : "SET email = :v, emailVerified = :t, updatedAt = :u REMOVE emailStopped",
-      ExpressionAttributeValues: c.kind === "sms" ? { ":v": c.value, ":u": nowIso() } : { ":v": c.value, ":t": true, ":u": nowIso() },
+        c.kind === "sms"
+          ? `SET sms = :v, updatedAt = :u${consent ? ", smsConsent = :c" : ""} REMOVE smsStopped`
+          : "SET email = :v, emailVerified = :t, updatedAt = :u REMOVE emailStopped",
+      ExpressionAttributeValues:
+        c.kind === "sms" ? { ":v": c.value, ":u": nowIso(), ...(consent ? { ":c": consent } : {}) } : { ":v": c.value, ":t": true, ":u": nowIso() },
       ConditionExpression: "attribute_exists(phone)",
     }),
   );
@@ -205,7 +217,7 @@ export async function removeContact(id: string, kind: ContactKind) {
       TableName: env.subscribersTable,
       Key: { phone: id },
       // sms is set to "" rather than removed, so an id that is itself a number stops counting as one
-      UpdateExpression: kind === "sms" ? "SET sms = :e, updatedAt = :u REMOVE smsStopped" : "SET updatedAt = :u REMOVE email, emailVerified, emailStopped",
+      UpdateExpression: kind === "sms" ? "SET sms = :e, updatedAt = :u REMOVE smsStopped, smsConsent" : "SET updatedAt = :u REMOVE email, emailVerified, emailStopped",
       ExpressionAttributeValues: kind === "sms" ? { ":e": "", ":u": nowIso() } : { ":u": nowIso() },
       ConditionExpression: "attribute_exists(phone)",
     }),
@@ -562,6 +574,8 @@ export async function getKnownColorKeys(): Promise<string[]> {
 export type OtpRecord = {
   phone: string; // "otp#+1801..."
   hash: string;
+  /** ISO time the person ticked the texts-consent box when asking for this code (codes sent by text only) */
+  consentAt?: string;
   expiresAt: number; // epoch ms
   attempts: number;
   sentAt: number[]; // epoch ms of recent sends, for rate limiting

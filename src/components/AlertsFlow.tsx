@@ -24,13 +24,13 @@ type Subscriber = {
   supporters?: SupportPerson[];
 };
 type SupportPerson = { email: string; status: "invited" | "active"; text?: boolean };
-type Step = "loading" | "channel" | "phone" | "email" | "code" | "colors" | "agree" | "done";
+type Step = "loading" | "channel" | "signin" | "phone" | "email" | "code" | "colors" | "agree" | "done";
 const AGREEMENT_VERSION = 1;
 const hasAgreed = (sub: Subscriber | null) => !!sub?.agreedAt && (sub.agreementVersion ?? 0) >= AGREEMENT_VERSION;
 type Status = { kind: "idle" | "busy" | "ok" | "err"; msg?: string };
 
 /** Progress bar position: choosing and entering a contact, its code, colors, agreement. */
-const STEP_INDEX: Record<Exclude<Step, "loading" | "done">, number> = { channel: 0, phone: 0, email: 0, code: 1, colors: 2, agree: 3 };
+const STEP_INDEX: Record<Exclude<Step, "loading" | "done">, number> = { channel: 0, signin: 0, phone: 0, email: 0, code: 1, colors: 2, agree: 3 };
 
 /**
  * One question per screen:
@@ -52,13 +52,17 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
   const [emailInput, setEmailInput] = useState("");
   const [pending, setPending] = useState<{ kind: Kind; value: string } | null>(null); // where the code went
   const [contacts, setContacts] = useState<Contacts>({});
-  const [linking, setLinking] = useState(false); // adding or replacing a channel from the summary card
+  const [linking, setLinking] = useState(false);
+  const [returning, setReturning] = useState(false); // came in through "Already signed up? Sign in"
+  const [identifier, setIdentifier] = useState(""); // the number or email typed on the sign-in screen // adding or replacing a channel from the summary card
   const [code, setCode] = useState("");
   const [devCode, setDevCode] = useState<string | null>(null);
   const [known, setKnown] = useState<ColorInfo[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [agreed, setAgreed] = useState(false);
+  const [smsAgreed, setSmsAgreed] = useState(false); // "I agree to receive automated text alerts": never pre-ticked
+  const [unaffiliatedOk, setUnaffiliatedOk] = useState(false); // "I understand this website is not affiliated…"
   const [existing, setExisting] = useState<Subscriber | null>(null);
   const [supporting, setSupporting] = useState<{ name: string; status: "invited" | "active"; link: string }[]>([]); // people this email is a support person for
   const [editing, setEditing] = useState(false); // came from "done" to tweak one thing
@@ -137,11 +141,14 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
   }
 
   /** Send a code to the number or address being entered (or resend to the last one). */
-  async function requestCode(kind: Kind, e?: React.FormEvent) {
+  async function requestCode(kind: Kind, e?: React.FormEvent, signin?: { value: string }) {
     e?.preventDefault();
     setStatus({ kind: "busy" });
     try {
-      const { r, d } = await call("/api/auth/send-code", "POST", kind === "sms" ? { phone } : { email: emailInput });
+      const body = signin
+        ? kind === "sms" ? { phone: signin.value, signin: true } : { email: signin.value }
+        : kind === "sms" ? { phone, consent: smsAgreed && unaffiliatedOk } : { email: emailInput };
+      const { r, d } = await call("/api/auth/send-code", "POST", body);
       if (!r.ok) {
         const msg =
           d.error === "rate_limited" ? s.auth.tooMany
@@ -150,11 +157,13 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
           : d.error === "quota" ? c.quota
           : d.error === "opted_out" ? s.auth.optedOut(prettyNumber(smsNumber))
           : d.error === "invalid_phone" ? s.notify.phoneLabel
+          : d.error === "consent_required" ? c.smsAgreeNeeded
           : d.error === "invalid_email" ? c.invalidEmail
           : s.auth.wrongCode;
         return setStatus({ kind: "err", msg });
       }
       setPending({ kind: d.kind, value: d.sentTo });
+      setReturning(!!signin);
       setDevCode(d.devCode ?? null);
       setCode("");
       setStep("code");
@@ -223,6 +232,8 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
   /** From the summary card: add or replace a channel. It is proven with a code like at sign-up. */
   function startLink(kind: Kind, prefill = "") {
     setLinking(true);
+    setSmsAgreed(false);
+    setUnaffiliatedOk(false);
     setPhone("");
     setEmailInput(kind === "email" ? prefill : "");
     setStatus({ kind: "idle" });
@@ -293,8 +304,12 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
     setCode("");
     setPhone("");
     setEmailInput("");
+    setSmsAgreed(false);
+    setUnaffiliatedOk(false);
     setEditing(false);
     setLinking(false);
+    setReturning(false);
+    setIdentifier("");
     setStep("channel");
     setStatus({ kind: "idle" });
   }
@@ -550,6 +565,48 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
             <button type="submit" className="btn-primary mt-6 w-full">
               {s.wizard.continue_}
             </button>
+            <p className="mt-4 text-center text-sm text-fg-muted">
+              {c.already}{" "}
+              <button type="button" className="link" onClick={() => { setStatus({ kind: "idle" }); setStep("signin"); }}>
+                {c.signIn}
+              </button>
+            </p>
+          </form>
+        )}
+
+        {step === "signin" && (
+          // Returning people: one field, no boxes to tick again. A number is only texted if it already has an alert.
+          <form
+            onSubmit={(e) => {
+              const v = identifier.trim();
+              void requestCode(v.includes("@") ? "email" : "sms", e, { value: v });
+            }}
+          >
+            <h2 className="text-xl font-bold sm:text-2xl">{c.signInTitle}</h2>
+            <p className="mt-2 text-sm text-fg-muted">{c.signInHelp}</p>
+            <input
+              type="text"
+              inputMode="email"
+              autoComplete="username"
+              placeholder="(801) 555-1234 / you@example.com"
+              aria-label={c.signInLabel}
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              className="field mt-5 text-lg"
+              required
+              autoFocus
+            />
+            {statusLine}
+            <button
+              type="submit"
+              disabled={busy || !(identifier.includes("@") ? /^\S+@\S+\.\S+$/.test(identifier.trim()) : identifier.replace(/\D/g, "").length >= 10)}
+              className="btn-primary mt-6 w-full"
+            >
+              {busy ? s.auth.sending : c.signInSend}
+            </button>
+            <div className="mt-4 text-sm">
+              <button type="button" className="link" onClick={() => { setStatus({ kind: "idle" }); setStep("channel"); }}>{s.wizard.back}</button>
+            </div>
           </form>
         )}
 
@@ -562,7 +619,18 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
               </div>
             )}
             <h2 className="text-xl font-bold sm:text-2xl">{linking ? c.addPhoneTitle : s.wizard.phoneTitle}</h2>
-            <p className="mt-2 text-sm text-fg-muted">{linking ? c.addHelp : s.wizard.phoneHelp}</p>
+            <p className="mt-2 text-sm text-fg-muted">
+              {linking ? c.addHelp : s.wizard.phoneHelp}
+              {!linking && (
+                <>
+                  {" "}
+                  {c.already}{" "}
+                  <button type="button" className="link" onClick={() => { setStatus({ kind: "idle" }); setIdentifier(phone); setStep("signin"); }}>
+                    {c.signIn}
+                  </button>
+                </>
+              )}
+            </p>
             <input
               type="tel"
               inputMode="tel"
@@ -576,8 +644,16 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
               autoFocus
             />
             <p className="mt-2 text-xs text-fg-faint">{s.notify.usNumbers}</p>
-            {/* The consent a person gives by continuing, stated where they give it. */}
-            <p className="mt-4 text-xs leading-relaxed text-fg-muted">
+            {/* Consent is given by ticking these, never assumed: both start unticked and both are required. */}
+            <label className="mt-5 flex cursor-pointer items-start gap-3">
+              <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-[#edb058]" checked={smsAgreed} onChange={(e) => setSmsAgreed(e.target.checked)} required />
+              <span className="text-sm font-semibold">{c.smsAgree}</span>
+            </label>
+            <label className="mt-3 flex cursor-pointer items-start gap-3">
+              <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-[#edb058]" checked={unaffiliatedOk} onChange={(e) => setUnaffiliatedOk(e.target.checked)} required />
+              <span className="text-sm font-semibold">{c.notAffiliated}</span>
+            </label>
+            <p className="mt-3 text-xs leading-relaxed text-fg-muted">
               {c.smsConsent} {c.smsConsentLinks}{" "}
               <a className="link" href="/privacy" target="_blank" rel="noreferrer">
                 {s.footer.privacy}
@@ -589,7 +665,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
               .
             </p>
             {statusLine}
-            <button type="submit" disabled={smsPending || busy || phone.replace(/\D/g, "").length < 10} className="btn-primary mt-6 w-full">
+            <button type="submit" disabled={smsPending || busy || !smsAgreed || !unaffiliatedOk || phone.replace(/\D/g, "").length < 10} className="btn-primary mt-6 w-full">
               {busy ? s.auth.sending : s.auth.sendCode}
             </button>
             <div className="mt-4 text-sm">
@@ -628,8 +704,11 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
           <form onSubmit={verify}>
             <h2 className="text-xl font-bold sm:text-2xl">{s.wizard.codeTitle}</h2>
             <p className="mt-2 text-sm text-fg-muted">
-              {pending.kind === "sms" ? s.wizard.codeHelp(prettyPhone(pending.value)) : c.codeHelpEmail(pending.value)}
+              {returning
+                ? c.signInSent(pending.kind === "sms" ? prettyPhone(pending.value) : pending.value)
+                : pending.kind === "sms" ? s.wizard.codeHelp(prettyPhone(pending.value)) : c.codeHelpEmail(pending.value)}
             </p>
+            {returning && <p className="mt-2 text-xs text-fg-faint">{c.signInNew}</p>}
             {devCode && <p className="mt-3 rounded-md bg-white/8 px-3 py-2 text-xs text-fg-muted">{c.devCode(devCode)}</p>}
             <input
               type="text"
@@ -656,7 +735,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
                   // put what they typed back so they can fix it
                   if (pending.kind === "email") setEmailInput(pending.value);
                   setStatus({ kind: "idle" });
-                  setStep(pending.kind === "sms" ? "phone" : "email");
+                  setStep(returning ? "signin" : pending.kind === "sms" ? "phone" : "email");
                 }}
               >
                 {s.wizard.back}
@@ -667,7 +746,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
                 disabled={busy}
                 onClick={async () => {
                   setStatus({ kind: "busy" });
-                  const { r, d } = await call("/api/auth/send-code", "POST", pending.kind === "sms" ? { phone: pending.value } : { email: pending.value }).catch(() => ({ r: null, d: {} as { devCode?: string } }));
+                  const { r, d } = await call("/api/auth/send-code", "POST", pending.kind === "sms" ? (returning ? { phone: pending.value, signin: true } : { phone: pending.value, consent: smsAgreed && unaffiliatedOk }) : { email: pending.value }).catch(() => ({ r: null, d: {} as { devCode?: string } }));
                   if (!r?.ok) return setStatus({ kind: "err", msg: (d as { error?: string }).error === "quota" ? c.quota : s.auth.tooMany });
                   setDevCode(d.devCode ?? null);
                   setCode("");

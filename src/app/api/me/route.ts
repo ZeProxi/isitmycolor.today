@@ -66,6 +66,7 @@ export async function PUT(req: NextRequest) {
     prefs: prefs ?? undefined,
     agree,
     contacts: session.contacts,
+    smsConsentAt: session.smsConsentAt,
   });
   return Response.json({ id: session.id, contacts: contactsOf(subscriber), subscriber: forHolder(subscriber) });
 }

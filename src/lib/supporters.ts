@@ -22,6 +22,8 @@ export type Supporter = {
   confirmedAt?: string;
   /** Their own mobile number, which they added and proved with a code themselves. Never supplied by the holder. */
   sms?: string;
+  /** When they ticked "I agree to receive automated text alerts" for that number. */
+  smsConsentAt?: string;
 };
 
 export const MAX_SUPPORTERS = 2;
@@ -100,7 +102,7 @@ export async function removeSupporter(id: string, email: string): Promise<void> 
 export const activeSupporters = (sub: Pick<Subscriber, "supporters">): Supporter[] => (sub.supporters ?? []).filter((s) => s.status === "active");
 
 /** Set or clear the number a support person gets texts on. Returns false if they are no longer a supporter. */
-export async function setSupporterSms(id: string, email: string, sms: string | undefined): Promise<boolean> {
+export async function setSupporterSms(id: string, email: string, sms: string | undefined, consentAt?: string): Promise<boolean> {
   const sub = await getSubscriber(id);
   const list = sub?.supporters ?? [];
   if (!sub || !list.some((s) => s.email === email && s.status === "active")) return false;
@@ -108,9 +110,10 @@ export async function setSupporterSms(id: string, email: string, sms: string | u
     id,
     list.map((s) => {
       if (s.email !== email) return s;
-      const { sms: _old, ...rest } = s;
+      const { sms: _old, smsConsentAt: _oldConsent, ...rest } = s;
       void _old;
-      return sms ? { ...rest, sms } : rest;
+      void _oldConsent;
+      return sms ? { ...rest, sms, smsConsentAt: consentAt } : rest;
     }),
   );
   return true;
