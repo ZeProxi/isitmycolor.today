@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { connection } from "next/server";
 import Link from "next/link";
 import { getTodayColors } from "@/lib/today";
@@ -5,7 +6,7 @@ import { todayIsoMountain, longDateMountain } from "@/lib/dates";
 import { colorInfo, everyoneCalled, matchedColors } from "@/lib/colors";
 import { getLang } from "@/lib/lang-server";
 import { t } from "@/lib/i18n";
-import { myColors } from "@/lib/mine";
+import { mineToday } from "@/lib/mine";
 import { DayMoment } from "./DayMoment";
 
 function cap(w: string) {
@@ -16,7 +17,8 @@ export async function TodayColors() {
   await connection(); // render at request time so "today" is the real today
   const lang = await getLang();
   const s = t(lang).home;
-  const [data, mine] = await Promise.all([getTodayColors(), myColors()]);
+  const [data, me] = await Promise.all([getTodayColors(), mineToday()]);
+  const mine = me.colors;
   const today = todayIsoMountain();
 
   if ("error" in data) {
@@ -53,10 +55,18 @@ export async function TodayColors() {
   const firstMine = data.colors.find((c) => matched.includes(c.key)) ?? (everyone && matched.length ? data.colors[0] : undefined);
   const momentHex = firstMine ? (firstMine.siteBackground ?? colorInfo(firstMine.key, firstMine).hex) : "#edb058";
 
+  // Whether today's banner is still to come is known here, on the server, so it arrives with the page and
+  // covers it from the start: the colors are never shown first and then covered a moment later.
+  const moment = mine.length > 0 && !stale && n > 0 && data.layout !== "fallback";
+  // In development only, a `moment-test` cookie makes the banner due on every load, so the way it arrives
+  // with the page can be watched without waiting for tomorrow. It has no effect on the live site.
+  const rehearsal = process.env.NODE_ENV !== "production" && (await cookies()).has("moment-test");
+  const pending = moment && (me.momentDate !== today || rehearsal);
+
   return (
-    <section>
-      {mine.length > 0 && !stale && n > 0 && data.layout !== "fallback" && (
-        <DayMoment kind={matched.length ? "mine" : "clear"} hex={momentHex} ink={firstMine ? colorInfo(firstMine.key, firstMine).text : "#fff"} label={s.yoursUp} clearLabel={t(lang).emailSubject.noMatch} />
+    <section className={pending ? "moment-hold" : undefined}>
+      {moment && (
+        <DayMoment pending={pending} kind={matched.length ? "mine" : "clear"} hex={momentHex} ink={firstMine ? colorInfo(firstMine.key, firstMine).text : "#fff"} label={s.yoursUp} clearLabel={t(lang).emailSubject.noMatch} />
       )}
       <div className="rise flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
         <div>
@@ -105,6 +115,7 @@ export async function TodayColors() {
             return (
               <Link
                 key={c.raw}
+                data-mine-today={isMine ? "" : undefined}
                 href={`/color/${encodeURIComponent(c.key)}`}
                 style={{ "--i": idx, color: info.text } as React.CSSProperties}
                 className={`chip-in group relative flex flex-col justify-end overflow-hidden rounded-md border border-white/15 bg-ink-2 sm:min-h-48 sm:p-6 ${

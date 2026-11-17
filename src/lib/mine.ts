@@ -11,3 +11,18 @@ export async function myColors(): Promise<string[]> {
     return [];
   }
 }
+
+/**
+ * The same, plus the last day this person saw the once-a-day banner, from the same single read.
+ * Only reads: the banner is marked as seen by the browser once it is actually on screen.
+ */
+export async function mineToday(): Promise<{ colors: string[]; momentDate?: string }> {
+  try {
+    const phone = await currentAccount();
+    if (!phone) return { colors: [] };
+    const sub = await getSubscriber(phone);
+    return { colors: sub?.colors ?? [], momentDate: (sub as { momentDate?: string } | undefined)?.momentDate };
+  } catch {
+    return { colors: [] };
+  }
+}

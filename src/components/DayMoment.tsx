@@ -8,51 +8,80 @@ import { useEffect, useRef, useState } from "react";
  * lifts. When one of their colors is listed it is in that color, with a frowning
  * face. When none is, it is amber with a smiling face, and confetti goes off over it. Purely decorative: it never blocks a tap, is skipped for
  * people who ask for reduced motion, and the server decides whether today's has
- * already been shown (once per account).
+ * already been shown (once per account). On the day it is due it arrives as part of
+ * the page, so the page is never seen first; afterwards, a listed color's tile shakes.
  *
- * Adding ?moment=clear or ?moment=mine to the address plays it on demand.
+ * Adding ?moment=clear or ?moment=mine to the address plays it on demand; ?moment=clear-load and
+ * ?moment=mine-load play it the way it runs on the day, driven by the stylesheet.
  */
-export function DayMoment({ kind, hex, ink = "#fff", label = "", clearLabel = "" }: { kind: "clear" | "mine"; hex: string; ink?: string; label?: string; clearLabel?: string }) {
+export function DayMoment({ kind, pending = false, hex, ink = "#fff", label = "", clearLabel = "" }: { kind: "clear" | "mine"; pending?: boolean; hex: string; ink?: string; label?: string; clearLabel?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const curtain = useRef<HTMLDivElement>(null);
   const icon = useRef<SVGSVGElement>(null);
-  const [which, setWhich] = useState<"clear" | "mine" | null>(null);
+  // `pending` comes from the server: today's banner hasn't been shown yet. Then the banner is part of the page
+  // as it arrives and drops by plain CSS, before any script has run, so the page is never seen first.
+  // `scripted` is the other way in: the ?moment= preview, where the script drops the banner on request.
+  const [which, setWhich] = useState<"clear" | "mine" | null>(pending ? kind : null);
+  const [scripted, setScripted] = useState(false);
 
-  // Ask once whether today's moment is still unseen.
   useEffect(() => {
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
     let alive = true;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const later = (ms: number, fn: () => void) => timers.push(setTimeout(() => alive && fn(), ms));
+    const stop = () => {
+      alive = false;
+      timers.forEach(clearTimeout);
+    };
+
+    if (still) {
+      later(0, () => setWhich(null)); // the stylesheet already keeps the banner hidden; nothing is marked as seen
+      return stop;
+    }
     const forced = new URLSearchParams(location.search).get("moment");
     if (forced === "clear" || forced === "mine") {
-      const id = setTimeout(() => alive && setWhich(forced), 0);
-      return () => {
-        alive = false;
-        clearTimeout(id);
-      };
+      later(0, () => {
+        setScripted(true);
+        setWhich(forced);
+      });
+      return stop;
     }
-    fetch("/api/me/moment", { method: "POST" })
-      .then((r) => (r.ok ? r.json() : { play: false }))
-      .then((d) => alive && d.play && setWhich(kind))
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [kind]);
+    if (forced === "clear-load" || forced === "mine-load") {
+      // a preview of the real thing: the stylesheet-driven banner, with the colors held back underneath
+      const section = document.querySelector("[data-mine-today]")?.closest("section") ?? document.querySelector("main section");
+      section?.classList.add("moment-hold");
+      later(0, () => setWhich(forced === "clear-load" ? "clear" : "mine"));
+      later(CLEAR_MS + 600, () => section?.classList.remove("moment-hold"));
+      return stop;
+    }
+    if (pending) {
+      // It is on screen now: mark today's as seen. If another device got there first, take it down quietly.
+      fetch("/api/me/moment", { method: "POST" })
+        .then((r) => (r.ok ? r.json() : { play: true }))
+        .then((d) => alive && !d.play && setWhich(null))
+        .catch(() => {});
+    } else if (kind === "mine") {
+      later(1100, shakeMine); // no banner today, but your color is up: the tile gives a short shake once it has landed
+    }
+    return stop;
+  }, [kind, pending]);
 
-  // Then run it: the banner drops, holds, and lifts; good news also gets confetti over the top.
+  // While it is up: the face moves, good news gets confetti, and it is taken away once it has lifted.
   useEffect(() => {
     if (!which || !curtain.current) return;
     const total = which === "clear" ? CLEAR_MS : MINE_MS;
-    const down = 420 / total; // the drop and the lift take the same time whichever banner it is
-    const drop = curtain.current.animate(
-      [
-        { transform: "translateY(-100%)", offset: 0 },
-        { transform: "translateY(0)", offset: down, easing: "cubic-bezier(0.2, 0.9, 0.3, 1)" },
-        { transform: "translateY(0)", offset: 1 - down * 1.2, easing: "cubic-bezier(0.6, 0, 0.8, 0.2)" },
-        { transform: "translateY(-100%)", offset: 1 },
-      ],
-      { duration: total, fill: "both" },
-    );
+    const down = DROP_MS / total; // the drop and the lift take the same time whichever banner it is
+    const drop = scripted
+      ? curtain.current.animate(
+          [
+            { transform: "translateY(-100%)", offset: 0 },
+            { transform: "translateY(0)", offset: down, easing: "cubic-bezier(0.2, 0.9, 0.3, 1)" },
+            { transform: "translateY(0)", offset: 1 - down * 1.2, easing: "cubic-bezier(0.6, 0, 0.8, 0.2)" },
+            { transform: "translateY(-100%)", offset: 1 },
+          ],
+          { duration: total, fill: "both" },
+        )
+      : null; // otherwise the stylesheet below is already doing exactly this
     const move = icon.current?.animate(
       which === "mine"
         ? // the frowning face shakes its head, then settles
@@ -62,23 +91,43 @@ export function DayMoment({ kind, hex, ink = "#fff", label = "", clearLabel = ""
       { duration: which === "mine" ? 900 : 520, delay: 380, easing: "ease-in-out", fill: "backwards" },
     );
     const stopConfetti = which === "clear" && canvas.current ? play(canvas.current, CLEAR_MS + 400) : () => {};
-    drop.onfinish = () => setTimeout(() => setWhich(null), which === "clear" ? 500 : 0); // let the last confetti fade
+    const done = setTimeout(
+      () => {
+        setWhich(null);
+        // it has lifted and your color is there underneath: the tile gives a short shake
+        if (which === "mine") setTimeout(shakeMine, 200);
+      },
+      total + (which === "clear" ? 500 : 0), // let the last confetti fade
+    );
     return () => {
-      drop.cancel();
+      drop?.cancel();
       move?.cancel();
       stopConfetti();
+      clearTimeout(done);
     };
-  }, [which]);
+  }, [which, scripted]);
 
   if (!which) return null;
   const mine = which === "mine";
+  const total = mine ? MINE_MS : CLEAR_MS;
+  const down = (DROP_MS / total) * 100;
+  // The banner's whole life as a stylesheet, for the day it arrives with the page: drop, hold, lift. It needs no
+  // script, so it can't be late and it can't get stuck. While it drops, the colors underneath are kept out of
+  // sight (`.moment-hold` is on the section around them), so the first thing seen is the banner, then the page.
+  const css = `
+@keyframes moment-curtain{0%{transform:translateY(-100%);animation-timing-function:cubic-bezier(.2,.9,.3,1)}${down.toFixed(2)}%{transform:translateY(0)}${(100 - down * 1.2).toFixed(2)}%{transform:translateY(0);animation-timing-function:cubic-bezier(.6,0,.8,.2)}100%{transform:translateY(-100%)}}
+@keyframes moment-reveal{from{visibility:hidden}to{visibility:visible}}
+.moment-curtain{animation:moment-curtain ${total}ms both}
+.moment-hold{animation:moment-reveal 0s linear ${DROP_MS}ms both}
+@media (prefers-reduced-motion:reduce){.moment-curtain{display:none}.moment-hold{animation:none}}`;
   return (
     <>
+      {!scripted && <style>{css}</style>}
       <div
         ref={curtain}
         aria-hidden
-        className="pointer-events-none fixed inset-0 z-[60] flex flex-col items-center justify-center gap-6 px-6 text-center"
-        style={{ background: mine ? hex : "#edb058", color: mine ? ink : "#131313", transform: "translateY(-100%)" }}
+        className={`pointer-events-none fixed inset-0 z-[60] flex flex-col items-center justify-center gap-6 px-6 text-center ${scripted ? "" : "moment-curtain"}`}
+        style={{ background: mine ? hex : "#edb058", color: mine ? ink : "#131313", visibility: "visible", ...(scripted ? { transform: "translateY(-100%)" } : {}) }}
       >
         <svg ref={icon} className="h-32 w-32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
           {/* a face reads faster than the words: frowning on your day, smiling when it isn't */}
@@ -88,10 +137,24 @@ export function DayMoment({ kind, hex, ink = "#fff", label = "", clearLabel = ""
         </svg>
         <p className="display text-5xl font-bold leading-none sm:text-7xl">{mine ? label : clearLabel}</p>
       </div>
-      {!mine && <canvas ref={canvas} aria-hidden className="pointer-events-none fixed inset-0 z-[61] h-full w-full" />}
+      {!mine && <canvas ref={canvas} aria-hidden className="pointer-events-none fixed inset-0 z-[61] h-full w-full" style={{ visibility: "visible" }} />}
     </>
   );
 }
+
+/** Your color's tile (or tiles) on today's list gives a short, quick shake, like a phone buzzing on a table. */
+function shakeMine() {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  for (const tile of document.querySelectorAll<HTMLElement>("[data-mine-today]")) {
+    tile.animate(
+      [0, -5, 5, -5, 4, -4, 3, -2, 2, -1, 0].map((x, i) => ({ transform: `translateX(${x}px) rotate(${i % 2 ? -0.6 : 0.6}deg)` })).concat([{ transform: "none" }]),
+      { duration: 650, easing: "linear" },
+    );
+  }
+}
+
+/** How long the banner takes to drop (and, a little longer, to lift). */
+const DROP_MS = 420;
 
 /** How long each banner is on screen. Good news stays a little longer, with confetti to watch. */
 const MINE_MS = 3000;
