@@ -1,6 +1,8 @@
 import { RidgeBirds } from "./RidgeBirds";
 import { RidgeMotion } from "./RidgeMotion";
+import { RidgePlane } from "./RidgePlane";
 import { RidgeWalker } from "./RidgeWalker";
+import { RidgeWeather } from "./RidgeWeather";
 
 /**
  * The mountain range that every page ends on: the Wasatch front as a flat, layered silhouette.
@@ -42,13 +44,13 @@ function Art({ viewBox, sunX, sunY = 84, reach = 300, id }: { viewBox: string; s
           </radialGradient>
         </defs>
         <path fill="#1e1e1d" d={FAR} />
-        <path fill={light} opacity="0.16" d={FAR} />
+        <path fill={light} style={{ opacity: "calc(0.16 * var(--sunlight, 1))" }} d={FAR} />
       </svg>
       <svg aria-hidden className={behind} viewBox={viewBox} preserveAspectRatio="none" data-depth="5" data-rise="4">
         <path fill="var(--line)" d={MID} />
-        <path fill={light} opacity="0.2" d={MID} />
+        <path fill={light} style={{ opacity: "calc(0.2 * var(--sunlight, 1))" }} d={MID} />
         <path fill="#56564f" d={SNOW} />
-        <path fill={light} opacity="0.75" d={SNOW} />
+        <path fill={light} style={{ opacity: "calc(0.75 * var(--sunlight, 1))" }} d={SNOW} />
       </svg>
       {/* thin bands of haze lying in the valley between the range and the foothills, drifting slowly */}
       <span className={`${haze} left-[8%] top-[52%] h-[9%] w-[46%]`} style={{ background: mist(0.1) }} data-haze="110" />
@@ -65,7 +67,7 @@ function Art({ viewBox, sunX, sunY = 84, reach = 300, id }: { viewBox: string; s
 function Sun({ at, size, glow }: { at: string; size: string; glow: string }) {
   const amber = "237 176 88";
   return (
-    <div className="pointer-events-none absolute inset-x-0 -top-24 bottom-0 overflow-hidden">
+    <div data-sun className="pointer-events-none absolute inset-x-0 -top-24 bottom-0 overflow-hidden transition-opacity duration-1000">
       <span
         data-depth="12"
         data-rise="14"
@@ -92,21 +94,27 @@ export function Ridge() {
     <>
       <div aria-hidden className="relative -mb-px h-14 overflow-x-clip sm:hidden">
         <Sun at="left-[26%] top-[110px]" size="h-[34px]" glow="h-[160px]" />
+        <RidgePlane className="w-[13px]" />
         <Art viewBox="330 0 400 160" sunX={434} sunY={40} reach={190} id="ridge-light-s" />
+        <RidgeWeather />
         <RidgeMotion />
         <RidgeBirds className="w-[9px]" />
         <RidgeWalker from={330} to={730} start={570} className="h-[11px]" />
       </div>
       <div aria-hidden className="relative -mb-px hidden h-20 overflow-x-clip sm:block lg:hidden">
         <Sun at="left-[27%] top-[119px]" size="h-[48px]" glow="h-[220px]" />
+        <RidgePlane className="w-[17px]" />
         <Art viewBox="250 0 700 160" sunX={439} sunY={46} reach={240} id="ridge-light-m" />
+        <RidgeWeather />
         <RidgeMotion />
         <RidgeBirds className="w-[11px]" />
         <RidgeWalker from={250} to={950} start={570} className="h-[15px]" />
       </div>
       <div aria-hidden className="relative -mb-px hidden h-32 overflow-x-clip lg:block">
         <Sun at="left-[27%] top-[163px]" size="h-[84px]" glow="h-[320px]" />
+        <RidgePlane className="w-[22px]" />
         <Art viewBox="0 0 1200 160" sunX={324} id="ridge-light-l" />
+        <RidgeWeather />
         <RidgeMotion />
         <RidgeBirds className="w-[14px]" />
         <RidgeWalker from={0} to={1200} start={570} className="h-[21px]" />
