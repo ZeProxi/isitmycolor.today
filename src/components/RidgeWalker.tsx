@@ -23,7 +23,8 @@ const WALK = 16; // pixels per second: in no hurry
 const RUN = 190; // pixels per second: very much in a hurry
 const SCARE = 95; // how close, in pixels, the pointer gets before he runs
 const SAFE = 220; // how far away he gets before he calms down
-const PATIENCE = 5; // how many times he can be startled in quick succession before he has had enough
+const PATIENCE = 12; // how many times he can be pestered in quick succession before he has had enough
+const FORGET = 4000; // milliseconds of being left alone after which he forgets all of it
 const TANTRUM = 6500; // milliseconds he spends chasing the pointer once he has
 const HOP = 420; // milliseconds a jump lasts
 const HEIST = 3800; // milliseconds he keeps the cursor once he has it
@@ -94,8 +95,8 @@ export function RidgeWalker({ from, to, start, className }: { from: number; to: 
 
     const onPointer = (e: PointerEvent) => {
       const r = box.getBoundingClientRect();
-      // only when the pointer is on or just above the mountains
-      pointerX = e.clientY > r.top - 70 && e.clientY < r.bottom + 30 ? e.clientX - r.left : null;
+      // only when the pointer is on the mountains themselves, not the page above or the footer links below
+      pointerX = e.clientY > r.top - 24 && e.clientY < r.bottom ? e.clientX - r.left : null;
       mouse = e.pointerType === "mouse";
     };
     const giveBack = () => {
@@ -108,12 +109,17 @@ export function RidgeWalker({ from, to, start, className }: { from: number; to: 
     window.addEventListener("pointerdown", onPointer, { passive: true });
     document.addEventListener("pointerleave", onLeave);
 
+    // nothing happens while the mountains are scrolled out of view
+    let inView = true;
+    const watch = new IntersectionObserver(([e]) => (inView = e.isIntersecting), { rootMargin: "120px" });
+    watch.observe(box);
+
     const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
-      if (box.offsetParent === null) {
-        if (hide) giveBack(); // the window was resized mid-heist: hand the cursor back
+      if (box.offsetParent === null || !inView) {
+        if (hide) giveBack(); // resized or scrolled away mid-heist: hand the cursor back
         return; // this screen size isn't the one being shown
       }
       const w = box.clientWidth || 1;
@@ -171,7 +177,7 @@ export function RidgeWalker({ from, to, start, className }: { from: number; to: 
           lastSide = side;
           if (!fleeing || crossed) {
             // startled (or pestered): count it. Left alone for a while, he forgets.
-            if (now - lastStartle > 9000) startled = 0;
+            if (now - lastStartle > FORGET) startled = 0;
             startled++;
             lastStartle = now;
             if (startled >= PATIENCE) {
@@ -221,6 +227,7 @@ export function RidgeWalker({ from, to, start, className }: { from: number; to: 
     raf = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(raf);
+      watch.disconnect();
       giveBack(); // never leave the page without its cursor
       window.removeEventListener("pointermove", onPointer);
       window.removeEventListener("pointerdown", onPointer);
