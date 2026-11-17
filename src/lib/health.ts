@@ -1,5 +1,6 @@
 import { GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
-import { docClient } from "./dynamo";
+import { docClient, findAccountByContact } from "./dynamo";
+import { sendPush } from "./push";
 import { env } from "./env";
 import { ready } from "./config";
 import { sendSms } from "./sms";
@@ -14,9 +15,18 @@ import type { ColorsSnapshot } from "./scrape";
  * text and one email per problem per day with the reason. Subscribers are
  * never contacted by this.
  *
- * Owner contacts come from SSM: OWNER_PHONE (E.164) and OWNER_EMAIL.
+ * Owner contacts come from SSM: OWNER_PHONE (E.164) and OWNER_EMAIL. The owner is told by text,
+ * by email, and by a notification on any device their own account on the site has turned on.
  */
 export type HealthProblem = "fetch_failed" | "no_colors" | "stale_page" | "new_color" | "all_colors";
+
+const SUBJECT: Record<HealthProblem, string> = {
+  fetch_failed: "couldn't reach the hotline page",
+  no_colors: "no colors found on the page",
+  stale_page: "page still shows another day",
+  new_color: "new color name on the page",
+  all_colors: "page calls all colors",
+};
 
 const STALE_AFTER_HOUR = 7; // Mountain time; the page normally flips at midnight
 
@@ -44,8 +54,19 @@ export async function alertOwner(problem: HealthProblem, detail: string): Promis
       : problem === "all_colors"
         ? `isitmycolor.today: the hotline page says "${detail}", which was read as everyone being called. Every subscriber is being alerted. Check the page.`
         : `isitmycolor.today check failed (${problem}): ${detail}. Subscribers were not texted.`;
-  if (phone) await sendSms(phone, msg).catch(() => {});
-  if (email) await sendEmail(email, `isitmycolor.today: scraper problem (${problem})`, msg).catch(() => {});
+  // Every channel the owner has, each on its own: one failing never stops the others.
+  if (phone) await sendSms(phone, msg).catch((e) => console.warn("[health] owner text failed:", e instanceof Error ? e.message : e));
+  if (email) await sendEmail(email, `isitmycolor.today: ${SUBJECT[problem]}`, msg).catch((e) => console.warn("[health] owner email failed:", e instanceof Error ? e.message : e));
+  // And a notification on the owner's own devices, if their account on this site has any turned on.
+  // That reaches a phone even while texting isn't available.
+  try {
+    const account =
+      (email ? await findAccountByContact({ kind: "email", value: email.trim().toLowerCase() }) : null) ??
+      (phone ? await findAccountByContact({ kind: "sms", value: phone }) : null);
+    if (account?.push?.length) await sendPush(account.phone, account.push, { title: `Site problem: ${SUBJECT[problem]}`, body: msg, url: "/", tag: `health-${problem}` });
+  } catch (e) {
+    console.warn("[health] owner notification failed:", e instanceof Error ? e.message : e);
+  }
   await docClient().send(new PutCommand({ TableName: env.historyTable, Item: { ...key, problem, detail, at: nowIso() } }));
   return "sent";
 }
