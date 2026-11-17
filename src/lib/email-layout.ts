@@ -95,3 +95,34 @@ export function codeEmail(code: string, lang: "en" | "es"): { subject: string; t
     html: emailShell({ lang, preheader: s.expires, body, footer: esc(s.ignore) }),
   };
 }
+
+/** The invitation a support person gets. They receive nothing else unless they accept on the linked page. */
+export function supporterInviteEmail(name: string, lang: "en" | "es", confirm: string): { subject: string; text: string; html: string } {
+  const s =
+    lang === "es"
+      ? {
+          subject: `${name} quiere que recibas sus alertas de color`,
+          title: `${name} te invitó`,
+          lead: `${name} usa isitmycolor.today para saber qué días sale su color en la línea UA de Wasatch Behavioral Health, y pidió que tú también recibas un correo esos días.`,
+          what: "Es un correo corto en los días de su color y nada más. Puedes detenerlo cuando quieras.",
+          button: "Ver la invitación",
+          ignore: "Si no quieres recibirlos, ignora este correo. No te escribiremos de nuevo.",
+        }
+      : {
+          subject: `${name} would like you to get their color-day alerts`,
+          title: `${name} invited you`,
+          lead: `${name} uses isitmycolor.today to know which days their color is listed on the Wasatch Behavioral Health UA hotline, and asked for you to get an email on those days too.`,
+          what: "That's one short email on their color days and nothing else. You can stop at any time.",
+          button: "See the invitation",
+          ignore: "If you don't want these, ignore this email. We won't write to you again.",
+        };
+  const body = `      <p style="margin:0;font:700 22px/1.2 ${FONT};color:${FG}">${esc(s.title)}</p>
+      <p style="margin:10px 0 0;font:15px/1.55 ${FONT};color:${MUTED}">${esc(s.lead)}</p>
+      <p style="margin:10px 0 0;font:15px/1.55 ${FONT};color:${MUTED}">${esc(s.what)}</p>
+      <p style="margin:22px 0 0"><a href="${esc(confirm)}" style="display:inline-block;background:${EMAIL_ACCENT};color:#131313;border-radius:6px;padding:12px 18px;font:600 15px/1 ${FONT};text-decoration:none">${esc(s.button)}</a></p>`;
+  return {
+    subject: s.subject,
+    text: `${s.lead}\n\n${s.what}\n\n${s.button}: ${confirm}\n\n${s.ignore}`,
+    html: emailShell({ lang, preheader: s.what, body, footer: esc(s.ignore) }),
+  };
+}

@@ -121,6 +121,14 @@ npx tsx scripts/sns-sandbox.ts verify +18015551234 123456
    link to the saved copy instead of a screenshot. A real screenshot (headless Chrome in a Lambda) could be
    added later for the email channel.
 
+## Support people
+
+A signed-in person can invite up to two others (a sponsor, a parent, a case manager) to get an email on their
+color days. Adding someone only sends an invitation; alerts start after that person presses the button on the
+page it links to (`/api/supporter/confirm`), so nobody is emailed alerts without agreeing. Every alert they get
+has a stop link (`/api/supporter/stop`), the holder can remove them at any time, and they are stored on the
+holder's row, so they are deleted with the alert. See `src/lib/supporters.ts`.
+
 ## Push notifications and the flyer
 
 - The site is installable (manifest + icons). Signed-in people can turn on **web push** for a device from

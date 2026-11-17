@@ -13,6 +13,7 @@ import { unsubscribeUrl } from "./unsubscribe";
 import { colorInfo } from "./colors";
 import { t, isLang, type Lang } from "./i18n";
 import { emailShell, emailText, esc, EMAIL_ACCENT } from "./email-layout";
+import { activeSupporters, stopUrl } from "./supporters";
 
 export type NotifyResult = {
   snapshot: ColorsSnapshot;
@@ -76,7 +77,15 @@ export function forEmail(message: string): string {
 }
 
 /** HTML email: today's colors as flat tiles, the same sentence as the text, plus (if asked) the official page as captured. */
-export function buildEmailHtml(snapshot: ColorsSnapshot, matched: string[], sub: Who, text: string, unsubscribe?: string): string {
+export function buildEmailHtml(
+  snapshot: ColorsSnapshot,
+  matched: string[],
+  sub: Who,
+  text: string,
+  unsubscribe?: string,
+  /** set when this copy goes to a support person: it talks about the holder by name, and `unsubscribe` is the supporter's own stop link */
+  about?: { name: string },
+): string {
   const l = langOf(sub);
   const s = t(l);
   const { fg, muted, line: rule, font } = emailText;
@@ -93,7 +102,7 @@ export function buildEmailHtml(snapshot: ColorsSnapshot, matched: string[], sub:
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
           <td bgcolor="${esc(hex)}" style="background:${esc(hex)};color:${info.text};border-radius:6px;padding:16px 18px;${mine ? `border:3px solid ${EMAIL_ACCENT};` : "border:1px solid rgba(255,255,255,0.15);"}">
             <span style="font:700 24px/1.1 ${font};text-transform:capitalize">${esc(primary)}</span>${secondary ? `<span style="font:500 14px/1.1 ${font};opacity:0.8"> &nbsp;${esc(secondary)}</span>` : ""}
-            ${mine ? `<span style="float:right;background:#ffffff;color:#131313;border-radius:3px;padding:3px 8px;font:700 11px/1.2 ${font}">${esc(s.home.yourColor)}</span>` : ""}
+            ${mine && !about ? `<span style="float:right;background:#ffffff;color:#131313;border-radius:3px;padding:3px 8px;font:700 11px/1.2 ${font}">${esc(s.home.yourColor)}</span>` : ""}
           </td>
         </tr></table>
       </td></tr>`;
@@ -120,16 +129,40 @@ export function buildEmailHtml(snapshot: ColorsSnapshot, matched: string[], sub:
       return l === "es" && c.spanish ? c.spanish : c.english;
     })
     .join(", ");
-  const line = isMatch ? s.emailLine.match(mineNames) : snapshot.colors.length ? s.emailLine.noMatch : s.emailLine.none;
+  const line = about ? s.supporter.emailLine(about.name, mineNames) : isMatch ? s.emailLine.match(mineNames) : snapshot.colors.length ? s.emailLine.noMatch : s.emailLine.none;
   const body = `      <p style="margin:0;font:600 13px/1.3 ${font};color:${muted}">${esc(snapshot.dayName)} ${esc(snapshot.dateText)}</p>
-      <p style="margin:6px 0 18px;font:700 26px/1.15 ${font};color:${isMatch ? EMAIL_ACCENT : fg}">${esc(isMatch ? s.emailSubject.match : s.emailSubject.noMatch)}</p>
+      <p style="margin:6px 0 18px;font:700 26px/1.15 ${font};color:${isMatch ? EMAIL_ACCENT : fg}">${esc(about ? s.supporter.emailSubject(about.name) : isMatch ? s.emailSubject.match : s.emailSubject.noMatch)}</p>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${tiles}</table>
       <p style="margin:12px 0 0;padding-top:16px;border-top:1px solid ${rule};font:15px/1.55 ${font};color:${fg}">${esc(line)}</p>
       ${official}`;
   const footer = unsubscribe
-    ? `${esc(s.emailWhy)} <a href="${esc(unsubscribe)}" style="color:${muted}">${esc(s.emailUnsubscribe)}</a>`
+    ? `${esc(about ? s.supporter.emailWhy(about.name) : s.emailWhy)} <a href="${esc(unsubscribe)}" style="color:${muted}">${esc(about ? s.supporter.emailStop : s.emailUnsubscribe)}</a>`
     : undefined;
   return emailShell({ lang: l, preheader: `${line} ${forEmail(text)}`, body, footer });
+}
+
+/** Email each accepted support person. A failure for one of them never affects the holder or the others. */
+async function notifySupporters(snapshot: ColorsSnapshot, matched: string[], sub: Subscriber): Promise<void> {
+  const l = langOf(sub);
+  const s = t(l);
+  const name = sub.name || (l === "es" ? "Alguien" : "Someone");
+  const colors = matched
+    .map((k) => {
+      const c = colorInfo(k, snapshot.colors.find((x) => x.key === k));
+      return l === "es" && c.spanish ? c.spanish : c.english;
+    })
+    .join(", ");
+  for (const person of activeSupporters(sub)) {
+    try {
+      const stop = stopUrl(sub.phone, person.email);
+      const line = s.supporter.emailLine(name, colors);
+      // never the saved official page or the holder's own settings: just today's list and whose day it is
+      const html = buildEmailHtml(snapshot, matched, { lang: sub.lang, prefs: undefined }, line, stop, { name });
+      await sendEmail(person.email, s.supporter.emailSubject(name), `${line}\n\n${s.supporter.emailStop}: ${stop}`, html, undefined, undefined, stop);
+    } catch (e) {
+      console.warn("supporter email failed", e instanceof Error ? e.message : e);
+    }
+  }
 }
 
 /**
@@ -269,6 +302,8 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
       const tried = (number && !smsOff) || address || sub.push?.length;
       if (tried && !smsWent && !emailWent && !pushWent) throw new Error(smsError ?? email ?? "nothing could be delivered");
       await markNotified(sub.phone, snapshot.date!);
+      // Support people hear only on color days, and only after the holder's own alert has been dealt with.
+      if (matched.length) await notifySupporters(snapshot, matched, sub);
       result.notified.push({ phone: sub.phone, colors: matched, kind: matched.length ? "match" : "daily", email, smsError, push, ...r });
     } catch (e) {
       result.errors.push({ phone: sub.phone, error: e instanceof Error ? e.message : String(e) });

@@ -20,7 +20,10 @@ type Subscriber = {
   emailStopped?: { at: string; reason: "bounce" | "complaint" | "unsubscribe"; email: string };
   agreementVersion?: number;
   lastNotifiedDate?: string;
+  name?: string;
+  supporters?: SupportPerson[];
 };
+type SupportPerson = { email: string; status: "invited" | "active" };
 type Step = "loading" | "channel" | "phone" | "email" | "code" | "colors" | "agree" | "done";
 const AGREEMENT_VERSION = 1;
 const hasAgreed = (sub: Subscriber | null) => !!sub?.agreedAt && (sub.agreementVersion ?? 0) >= AGREEMENT_VERSION;
@@ -364,6 +367,14 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
           <Line label={c.emailRow} value={contacts.email || c.notSet} dim={!contacts.email}>
             <ChannelActions has={!!contacts.email} canRemove={!!contacts.sms} labels={c} busy={busy} onSet={() => startLink("email")} onRemove={() => removeChannel("email")} />
           </Line>
+  <Supporters
+            key={existing?.phone}
+            initial={existing?.supporters ?? []}
+            initialName={existing?.name ?? ""}
+            busy={busy}
+            setStatus={setStatus}
+            onGone={signedOut}
+          />
           <PushButton className="px-4 py-3" title={st.device} help={st.deviceHelp} />
         </Group>
 
@@ -842,5 +853,106 @@ function Line({ label, hint, value, dim, children }: { label: string; hint?: str
       </span>
       <span className="shrink-0 text-xs">{children}</span>
     </div>
+  );
+}
+
+/**
+ * "Support people": invite up to two others to get an email on your color days.
+ * An invitation is all that's sent until they accept on the page it links to.
+ */
+function Supporters({ initial, initialName, busy, setStatus, onGone }: { initial: SupportPerson[]; initialName: string; busy: boolean; setStatus: (s: Status) => void; onGone: () => void }) {
+  const { s } = useLang();
+  const t = s.supporter;
+  const [people, setPeople] = useState<SupportPerson[]>(initial);
+  const [adding, setAdding] = useState(false);
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState(initialName);
+
+  async function invite(to: string, e?: React.FormEvent) {
+    e?.preventDefault();
+    setStatus({ kind: "busy", msg: t.sending });
+    try {
+      const r = await fetch("/api/me/supporters", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: to, name }) });
+      const d = await r.json().catch(() => ({}));
+      if (r.status === 401) return onGone();
+      if (!r.ok) {
+        const msg =
+          d.error === "invalid_email" ? t.invalidEmail
+          : d.error === "name_required" ? t.nameRequired
+          : d.error === "own_email" ? t.ownEmail
+          : d.error === "too_many" ? t.tooMany
+          : d.error === "rate_limited" ? t.rateLimited
+          : t.failed;
+        return setStatus({ kind: "err", msg });
+      }
+      setPeople(d.supporters ?? []);
+      setAdding(false);
+      setEmail("");
+      setStatus({ kind: "ok", msg: t.sent(to.trim().toLowerCase()) });
+    } catch {
+      setStatus({ kind: "err", msg: s.notify.network });
+    }
+  }
+
+  async function removePerson(who: string) {
+    setStatus({ kind: "busy" });
+    try {
+      const r = await fetch(`/api/me/supporters?email=${encodeURIComponent(who)}`, { method: "DELETE" });
+      const d = await r.json().catch(() => ({}));
+      if (r.status === 401) return onGone();
+      if (!r.ok) return setStatus({ kind: "err", msg: s.notify.removeFailed });
+      setPeople(d.supporters ?? []);
+      setStatus({ kind: "ok", msg: t.removed });
+    } catch {
+      setStatus({ kind: "err", msg: s.notify.network });
+    }
+  }
+
+  // Lives inside "Where to send", under the Email row: the people already added, then one quiet link to add another.
+  return (
+    <>
+      {people.map((p) => (
+        <Line key={p.email} label={p.email} hint={p.status === "active" ? t.active : t.invited}>
+          <span className="flex items-center gap-3">
+            {p.status === "invited" && name && (
+              <button type="button" className="link" disabled={busy} onClick={() => invite(p.email)}>
+                {t.resend}
+              </button>
+            )}
+            <button type="button" className="link" disabled={busy} onClick={() => removePerson(p.email)}>
+              {t.remove}
+            </button>
+          </span>
+        </Line>
+      ))}
+      {!adding && people.length < 2 && (
+        <div className="px-4 py-2">
+          <button type="button" className="link text-xs" disabled={busy} onClick={() => setAdding(true)}>
+            + {t.add}
+          </button>
+        </div>
+      )}
+      {adding && (
+        <form className="space-y-3 px-4 py-4" onSubmit={(e) => invite(email, e)}>
+          <p className="text-xs text-fg-muted">{t.help}</p>
+          <label className="block text-sm font-semibold">
+            {t.emailLabel}
+            <input type="email" inputMode="email" autoComplete="off" required autoFocus placeholder="name@example.com" className="field mt-1.5 font-normal" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </label>
+          <label className="block text-sm font-semibold">
+            {t.nameLabel}
+            <input type="text" autoComplete="given-name" required maxLength={40} placeholder={t.namePlaceholder} className="field mt-1.5 font-normal" value={name} onChange={(e) => setName(e.target.value)} />
+          </label>
+          <div className="flex items-center justify-end gap-4 pt-1">
+            <button type="button" className="link text-sm" onClick={() => setAdding(false)}>
+              {t.cancel}
+            </button>
+            <button type="submit" disabled={busy || !name.trim() || !/^\S+@\S+\.\S+$/.test(email.trim())} className="btn-primary px-4 py-2 text-sm">
+              {t.send}
+            </button>
+          </div>
+        </form>
+      )}
+    </>
   );
 }
