@@ -34,7 +34,7 @@ const en = {
     stale: (date: string) =>
       `The hotline page still shows ${date}, which isn't today. It may not have been updated yet, so check back or call the hotline.`,
     notice: "Hotline notice.",
-    ctaText: "Text me when it's my color",
+    ctaText: "Notify me when it's my color",
     ctaYourAlerts: "Your alerts",
     ctaHistory: "See past days",
     unreachable: "Couldn't reach the hotline page",
@@ -621,7 +621,7 @@ const es: Dict = {
     stale: (date: string) =>
       `La página de la línea todavía muestra ${date}, que no es hoy. Puede que aún no se haya actualizado; vuelve a revisar o llama a la línea.`,
     notice: "Aviso de la línea.",
-    ctaText: "Avísame por texto cuando sea mi color",
+    ctaText: "Avísame cuando sea mi color",
     ctaYourAlerts: "Tus alertas",
     ctaHistory: "Ver días anteriores",
     unreachable: "No se pudo abrir la página de la línea",
