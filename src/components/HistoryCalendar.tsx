@@ -24,6 +24,7 @@ export function HistoryCalendar({
   today,
   lang,
   mine = [],
+  firstMonth,
 }: {
   month: string;
   days: ColorsSnapshot[];
@@ -31,6 +32,8 @@ export function HistoryCalendar({
   lang: Lang;
   /** the signed-in person's color keys; matching bars are highlighted */
   mine?: string[];
+  /** earliest month with anything on record ("YYYY-MM"); there is no going back past it */
+  firstMonth?: string;
 }) {
   const s = t(lang).history;
   const WEEKDAYS = s.weekdays;
@@ -49,13 +52,22 @@ export function HistoryCalendar({
   return (
     <section>
       <div className="flex items-center justify-between border-b border-line pb-3">
-        <Link href={`/history?month=${shiftMonth(month, -1)}`} className="link text-sm">
-          ‹ {monthLabel(shiftMonth(month, -1), lang, "short")}
-        </Link>
+        {/* Nothing was recorded before the first month, and nothing exists after this one: no link, same spacing. */}
+        {firstMonth && month <= firstMonth ? (
+          <span />
+        ) : (
+          <Link href={`/history?month=${shiftMonth(month, -1)}`} className="link text-sm">
+            ‹ {monthLabel(shiftMonth(month, -1), lang, "short")}
+          </Link>
+        )}
         <h2 className="text-lg font-bold capitalize">{monthLabel(month, lang)}</h2>
-        <Link href={`/history?month=${shiftMonth(month, 1)}`} className="link text-sm">
-          {monthLabel(shiftMonth(month, 1), lang, "short")} ›
-        </Link>
+        {month >= today.slice(0, 7) ? (
+          <span />
+        ) : (
+          <Link href={`/history?month=${shiftMonth(month, 1)}`} className="link text-sm">
+            {monthLabel(shiftMonth(month, 1), lang, "short")} ›
+          </Link>
+        )}
       </div>
 
       <div className="panel mt-4 hidden rounded-lg p-3 sm:block sm:p-4">

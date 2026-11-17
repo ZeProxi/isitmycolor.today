@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
-import { listMonthSnapshots } from "@/lib/dynamo";
+import { getFirstDay, listMonthSnapshots } from "@/lib/dynamo";
 import { todayIsoMountain, monthOf } from "@/lib/dates";
 import { getLang } from "@/lib/lang-server";
 import { t } from "@/lib/i18n";
@@ -24,7 +24,11 @@ async function HistoryContent({ searchParams }: { searchParams: PageProps<"/hist
   const sp = await searchParams;
   const today = todayIsoMountain();
   const requested = typeof sp.month === "string" ? sp.month : "";
-  const month = /^\d{4}-\d{2}$/.test(requested) ? requested : monthOf(today);
+  // The calendar only spans what's on record: from the first saved day's month to this month.
+  const thisMonth = monthOf(today);
+  const firstMonth = monthOf((await getFirstDay().catch(() => null)) ?? today);
+  const asked = /^\d{4}-\d{2}$/.test(requested) ? requested : thisMonth;
+  const month = asked < firstMonth ? firstMonth : asked > thisMonth ? thisMonth : asked;
 
   let days: Awaited<ReturnType<typeof listMonthSnapshots>> = [];
   let error: string | null = null;
@@ -46,7 +50,7 @@ async function HistoryContent({ searchParams }: { searchParams: PageProps<"/hist
           {s.loadFailed} {error}
         </p>
       )}
-      <HistoryCalendar month={month} days={days} today={today} lang={lang} mine={mine} />
+      <HistoryCalendar month={month} days={days} today={today} lang={lang} mine={mine} firstMonth={firstMonth} />
       {days.length > 0 && (
         <a className="btn-ghost text-sm" href={`/api/history/export?month=${month}`} download>
           {s.downloadCsv}

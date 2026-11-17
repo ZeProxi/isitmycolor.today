@@ -410,6 +410,21 @@ export async function listRecentSnapshots(limit = 14): Promise<ColorsSnapshot[]>
   return ((r.Items as DayRecord[]) ?? []).map((i) => i.snapshot);
 }
 
+/** The first day on record (YYYY-MM-DD), or null before anything has been saved. */
+export async function getFirstDay(): Promise<string | null> {
+  const r = await (await client()).send(
+    new QueryCommand({
+      TableName: env.historyTable,
+      KeyConditionExpression: "pk = :p",
+      ExpressionAttributeValues: { ":p": "DAY" },
+      ProjectionExpression: "sk",
+      ScanIndexForward: true,
+      Limit: 1,
+    }),
+  );
+  return (r.Items?.[0]?.sk as string | undefined) ?? null;
+}
+
 /** All recorded days in a month ("YYYY-MM"), oldest first. */
 export async function listMonthSnapshots(month: string): Promise<ColorsSnapshot[]> {
   const r = await (await client()).send(
