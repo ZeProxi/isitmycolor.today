@@ -61,6 +61,13 @@ export const env = {
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean);
   },
+  /**
+   * How many sign-in codes may go out by email per day, site-wide. Kept well under the email
+   * provider's daily allowance so codes can never crowd out alerts.
+   */
+  get emailCodeDailyCap() {
+    return Number(read("EMAIL_CODE_DAILY_CAP", "40"));
+  },
   /** Public URL of the deployed site, no trailing slash. Used for links in texts/emails. */
   get siteUrl() {
     return read("SITE_URL").replace(/\/$/, "");

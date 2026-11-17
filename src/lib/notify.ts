@@ -1,7 +1,7 @@
 import { fetchColors, type ColorsSnapshot } from "./scrape";
 import { deleteSubscriber, emailOf, getKnownColorKeys, listActiveSubscribers, markNotified, markProblemNotice, saveSnapshot, setSmsStopped, smsOf, DEFAULT_PREFS, type Subscriber } from "./dynamo";
 import { sendSms, listOptedOut } from "./sms";
-import { sendEmail } from "./email";
+import { sendEmail, EmailQuotaError } from "./email";
 import { todayIsoMountain, hourMountain, nowIso } from "./dates";
 import { env } from "./env";
 import { ready } from "./config";
@@ -380,6 +380,7 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
           email = e.skipped ? `skipped: ${e.skipped}` : e.dryRun ? "dry-run" : "sent";
         } catch (e) {
           email = `failed: ${e instanceof Error ? e.message : String(e)}`;
+          if (e instanceof EmailQuotaError) await alertOwner("email_quota", e.message).catch(() => {});
         }
       }
       let push: string | undefined;

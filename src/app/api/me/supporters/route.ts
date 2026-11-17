@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { currentSession } from "@/lib/auth";
 import { emailOf, getSubscriber } from "@/lib/dynamo";
-import { isEmail, sendEmail } from "@/lib/email";
+import { isEmail, sendEmail, EmailQuotaError } from "@/lib/email";
 import { supporterInviteEmail } from "@/lib/email-layout";
 import { confirmUrl, removeSupporter, saveSupporters, supportersForHolder, MAX_SUPPORTERS, type Supporter } from "@/lib/supporters";
 import { allow } from "@/lib/ratelimit";
@@ -47,8 +47,9 @@ export async function POST(req: NextRequest) {
     try {
       const r = await sendEmail(email, mail.subject, mail.text, mail.html);
       if (r.skipped) throw new Error(r.skipped);
-    } catch {
+    } catch (e) {
       if (!existing) await removeSupporter(session.id, email); // don't leave an invitation nobody received
+      if (e instanceof EmailQuotaError) return Response.json({ error: "quota" }, { status: 503 });
       return Response.json({ error: "send_failed" }, { status: 502 });
     }
   }

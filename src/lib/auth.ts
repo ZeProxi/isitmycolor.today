@@ -4,7 +4,8 @@ import { connection } from "next/server";
 import { env } from "./env";
 import { getOtp, putOtp, deleteOtp } from "./dynamo";
 import { sendSms, isOptedOut } from "./sms";
-import { sendEmail } from "./email";
+import { sendEmail, EmailQuotaError } from "./email";
+import { alertOwner } from "./health";
 import { codeEmail } from "./email-layout";
 import { ready } from "./config";
 import type { Contact, Contacts } from "./contact";
@@ -36,7 +37,7 @@ function safeEqual(a: string, b: string) {
 
 // ---------- one-time codes ----------
 
-export type SendResult = { ok: true; devCode?: string } | { ok: false; error: "rate_limited" | "sms_failed" | "email_failed" | "opted_out" };
+export type SendResult = { ok: true; devCode?: string } | { ok: false; error: "rate_limited" | "sms_failed" | "email_failed" | "opted_out" | "quota" };
 
 export async function sendCode(c: Contact, lang: "en" | "es" = "en"): Promise<SendResult> {
   await ready();
@@ -69,7 +70,11 @@ export async function sendCode(c: Contact, lang: "en" | "es" = "en"): Promise<Se
       const r = await sendEmail(c.value, mail.subject, mail.text, mail.html);
       if (r.skipped) return { ok: false, error: "email_failed" };
     }
-  } catch {
+  } catch (e) {
+    if (e instanceof EmailQuotaError) {
+      await alertOwner("email_quota", e.message).catch(() => {});
+      return { ok: false, error: "quota" };
+    }
     return { ok: false, error: c.kind === "sms" ? "sms_failed" : "email_failed" };
   }
   return { ok: true };

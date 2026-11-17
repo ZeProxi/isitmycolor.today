@@ -18,7 +18,7 @@ import type { ColorsSnapshot } from "./scrape";
  * Owner contacts come from SSM: OWNER_PHONE (E.164) and OWNER_EMAIL. The owner is told by text,
  * by email, and by a notification on any device their own account on the site has turned on.
  */
-export type HealthProblem = "fetch_failed" | "no_colors" | "stale_page" | "new_color" | "all_colors";
+export type HealthProblem = "fetch_failed" | "no_colors" | "stale_page" | "new_color" | "all_colors" | "email_quota";
 
 const SUBJECT: Record<HealthProblem, string> = {
   fetch_failed: "couldn't reach the hotline page",
@@ -26,6 +26,7 @@ const SUBJECT: Record<HealthProblem, string> = {
   stale_page: "page still shows another day",
   new_color: "new color name on the page",
   all_colors: "page calls all colors",
+  email_quota: "email allowance used up",
 };
 
 const STALE_AFTER_HOUR = 7; // Mountain time; the page normally flips at midnight
@@ -53,10 +54,12 @@ export async function alertOwner(problem: HealthProblem, detail: string): Promis
       ? `isitmycolor.today: the hotline listed a color name it has never used before: ${detail}. People are alerted by exact name, so check it isn't a typo or a new spelling of an existing color.`
       : problem === "all_colors"
         ? `isitmycolor.today: the hotline page says "${detail}", which was read as everyone being called. Every subscriber is being alerted. Check the page.`
+        : problem === "email_quota"
+          ? `isitmycolor.today: the email provider says the sending allowance is used up (${detail}). Alert emails and sign-in codes will fail until it resets. Texts and device notifications are not affected.`
         : `isitmycolor.today check failed (${problem}): ${detail}. Subscribers were not texted.`;
   // Every channel the owner has, each on its own: one failing never stops the others.
   if (phone) await sendSms(phone, msg).catch((e) => console.warn("[health] owner text failed:", e instanceof Error ? e.message : e));
-  if (email) await sendEmail(email, `isitmycolor.today: ${SUBJECT[problem]}`, msg).catch((e) => console.warn("[health] owner email failed:", e instanceof Error ? e.message : e));
+  if (email && problem !== "email_quota") await sendEmail(email, `isitmycolor.today: ${SUBJECT[problem]}`, msg).catch((e) => console.warn("[health] owner email failed:", e instanceof Error ? e.message : e));
   // And a notification on the owner's own devices, if their account on this site has any turned on.
   // That reaches a phone even while texting isn't available.
   try {

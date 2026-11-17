@@ -147,6 +147,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
           d.error === "rate_limited" ? s.auth.tooMany
           : d.error === "sms_failed" ? s.auth.smsFailed
           : d.error === "email_failed" ? c.emailFailed
+          : d.error === "quota" ? c.quota
           : d.error === "opted_out" ? s.auth.optedOut(prettyNumber(smsNumber))
           : d.error === "invalid_phone" ? s.notify.phoneLabel
           : d.error === "invalid_email" ? c.invalidEmail
@@ -667,7 +668,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
                 onClick={async () => {
                   setStatus({ kind: "busy" });
                   const { r, d } = await call("/api/auth/send-code", "POST", pending.kind === "sms" ? { phone: pending.value } : { email: pending.value }).catch(() => ({ r: null, d: {} as { devCode?: string } }));
-                  if (!r?.ok) return setStatus({ kind: "err", msg: s.auth.tooMany });
+                  if (!r?.ok) return setStatus({ kind: "err", msg: (d as { error?: string }).error === "quota" ? c.quota : s.auth.tooMany });
                   setDevCode(d.devCode ?? null);
                   setCode("");
                   setStatus({ kind: "idle" });
@@ -927,6 +928,7 @@ function Supporters({ initial, initialName, busy, setStatus, onGone }: { initial
           : d.error === "own_email" ? t.ownEmail
           : d.error === "too_many" ? t.tooMany
           : d.error === "rate_limited" ? t.rateLimited
+          : d.error === "quota" ? s.channels.quota
           : t.failed;
         return setStatus({ kind: "err", msg });
       }

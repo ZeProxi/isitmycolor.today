@@ -3,6 +3,8 @@ import { parseContact } from "@/lib/contact";
 import { sendCode } from "@/lib/auth";
 import { allow, clientIp, today } from "@/lib/ratelimit";
 import { getLang } from "@/lib/lang-server";
+import { env } from "@/lib/env";
+import { ready } from "@/lib/config";
 
 /** POST { phone } or { email } -> sends a 6-digit code there (text or email) */
 export async function POST(req: NextRequest) {
@@ -12,6 +14,7 @@ export async function POST(req: NextRequest) {
   } catch {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
+  await ready();
   const contact = parseContact(body);
   if (!contact) return Response.json({ error: body.email ? "invalid_email" : "invalid_phone" }, { status: 400 });
 
@@ -20,7 +23,13 @@ export async function POST(req: NextRequest) {
   if (!(await allow(`codes:ip:${ip}`, 10, 3600))) return Response.json({ error: "rate_limited" }, { status: 429 });
   if (!(await allow(`codes:day:${today()}`, 300, 86400))) return Response.json({ error: "rate_limited" }, { status: 429 });
 
+  // Emailed codes share a daily allowance with the alerts themselves. Codes stop first, so a burst of
+  // sign-ups can't use up what tomorrow morning's alerts need.
+  if (contact.kind === "email" && !(await allow(`codes:email:${today()}`, env.emailCodeDailyCap, 86400))) {
+    return Response.json({ error: "quota" }, { status: 503 });
+  }
+
   const r = await sendCode(contact, await getLang());
-  if (!r.ok) return Response.json({ error: r.error }, { status: r.error === "rate_limited" ? 429 : r.error === "opted_out" ? 409 : 502 });
+  if (!r.ok) return Response.json({ error: r.error }, { status: r.error === "rate_limited" ? 429 : r.error === "opted_out" ? 409 : r.error === "quota" ? 503 : 502 });
   return Response.json({ ok: true, kind: contact.kind, sentTo: contact.value, devCode: r.devCode });
 }

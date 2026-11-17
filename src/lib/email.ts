@@ -61,6 +61,14 @@ export async function sendEmail(
   return { messageId: r.MessageId, dryRun: false };
 }
 
+/** Thrown when the email provider refuses because the day's or month's allowance is used up. */
+export class EmailQuotaError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "EmailQuotaError";
+  }
+}
+
 async function sendViaResend(
   to: string,
   subject: string,
@@ -70,23 +78,36 @@ async function sendViaResend(
   from?: string,
   unsubscribeUrl?: string,
 ): Promise<{ messageId?: string; dryRun: boolean }> {
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { authorization: `Bearer ${env.resendApiKey}`, "content-type": "application/json" },
-    body: JSON.stringify({
-      from: from || env.emailFrom,
-      to: [to],
-      subject,
-      text,
-      ...(html ? { html } : {}),
-      ...(replyTo ? { reply_to: replyTo } : {}),
-      ...(unsubscribeUrl
-        ? { headers: { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } }
-        : {}),
-    }),
-  });
-  const body = (await res.json().catch(() => ({}))) as { id?: string; message?: string; name?: string };
-  // Thrown like an SES failure, so callers log it as "failed: ..." the same way.
-  if (!res.ok) throw new Error(`Resend ${res.status}: ${body.message ?? body.name ?? "send failed"}`);
-  return { messageId: body.id, dryRun: false };
+  const request = () =>
+    fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { authorization: `Bearer ${env.resendApiKey}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        from: from || env.emailFrom,
+        to: [to],
+        subject,
+        text,
+        ...(html ? { html } : {}),
+        ...(replyTo ? { reply_to: replyTo } : {}),
+        ...(unsubscribeUrl
+          ? { headers: { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } }
+          : {}),
+      }),
+      signal: AbortSignal.timeout(20_000),
+    });
+  // Resend answers 429 for two different things: too many requests this second (wait a moment and it
+  // goes through), or the day's/month's allowance being spent (nothing will go through until it resets).
+  for (let attempt = 0; ; attempt++) {
+    const res = await request();
+    const body = (await res.json().catch(() => ({}))) as { id?: string; message?: string; name?: string };
+    if (res.ok) return { messageId: body.id, dryRun: false };
+    const quota = res.status === 429 && /quota/i.test(`${body.name ?? ""} ${body.message ?? ""}`);
+    if (quota) throw new EmailQuotaError(`Resend: ${body.message ?? body.name ?? "sending allowance used up"}`);
+    if (res.status === 429 && attempt < 3) {
+      await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+      continue;
+    }
+    // Thrown like an SES failure, so callers log it as "failed: ..." the same way.
+    throw new Error(`Resend ${res.status}: ${body.message ?? body.name ?? "send failed"}`);
+  }
 }
