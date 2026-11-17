@@ -85,7 +85,7 @@ export type Subscriber = {
   emailStopped?: { at: string; reason: "bounce" | "complaint" | "unsubscribe"; email: string };
   /** web push subscriptions (devices that allowed notifications) */
   push?: { endpoint: string; keys: { p256dh: string; auth: string }; addedAt: string; ua?: string }[];
-  /** What the account holder is called in emails to their support people, e.g. "Tate". */
+  /** What the account holder is called in emails to their support people, e.g. "Sam". */
   name?: string;
   /** People who get an email on this person's color days. See supporters.ts. */
   supporters?: { email: string; status: "invited" | "active"; invitedAt: string; confirmedAt?: string; sms?: string }[];
