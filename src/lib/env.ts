@@ -117,6 +117,21 @@ export const env = {
   get sesEventsTopicArn() {
     return read("SES_EVENTS_TOPIC_ARN");
   },
+  /**
+   * Who operates the site, shown on the Terms and Privacy pages. Kept in configuration, not in the
+   * source, so a copy of this code names nobody. With no name set the section is left out.
+   */
+  get operatorName() {
+    return read("OPERATOR_NAME");
+  },
+  /** City and state shown next to the operator's name, e.g. "Springfield, Utah". Optional. */
+  get operatorLocation() {
+    return read("OPERATOR_LOCATION");
+  },
+  /** Public contact address shown with the operator's name. Optional. */
+  get operatorEmail() {
+    return read("OPERATOR_EMAIL");
+  },
   /** Where the About page's contact form delivers. Empty disables the form. */
   get contactEmail() {
     return read("CONTACT_EMAIL");

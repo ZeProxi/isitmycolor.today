@@ -3,6 +3,7 @@ import { getLang } from "@/lib/lang-server";
 import { t } from "@/lib/i18n";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { LegalPage } from "@/components/LegalPage";
+import { withOperator } from "@/lib/operator";
 
 export default function TermsPage() {
   return (
@@ -13,6 +14,7 @@ export default function TermsPage() {
 }
 
 async function TermsContent() {
-  const s = t(await getLang()).terms;
-  return <LegalPage title={s.title} updated={s.updated} sections={s.sections} />;
+  const lang = await getLang();
+  const s = t(lang).terms;
+  return <LegalPage title={s.title} updated={s.updated} sections={await withOperator(s.sections, lang)} />;
 }

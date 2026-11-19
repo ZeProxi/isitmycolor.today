@@ -284,6 +284,12 @@ const en = {
   },
   emailUnsubscribe: "Stop these emails",
   emailWhy: "You get this because you added your email on isitmycolor.today.",
+  operator: {
+    heading: "Who runs this site",
+    by: (name: string, where: string) => `isitmycolor.today is operated by ${name}, an individual${where ? ` in ${where}` : ""}, not a company. It is not operated by or affiliated with Wasatch Behavioral Health.`,
+    contact: (email: string) => ` Reach me at: ${email}`,
+    questions: (email: string) => `Questions about privacy can be sent to ${email}.`,
+  },
   privacy: {
     title: "Privacy policy",
     updated: "Last updated November 17, 2026",
@@ -885,6 +891,12 @@ const es: Dict = {
   },
   emailUnsubscribe: "Dejar de recibir estos correos",
   emailWhy: "Recibes esto porque agregaste tu correo en isitmycolor.today.",
+  operator: {
+    heading: "Quién opera este sitio",
+    by: (name: string, where: string) => `isitmycolor.today es operado por ${name}, una persona particular${where ? ` en ${where}` : ""}, no una empresa. No es operado por Wasatch Behavioral Health ni está afiliado a ella.`,
+    contact: (email: string) => ` Escríbeme a: ${email}`,
+    questions: (email: string) => `Las preguntas sobre privacidad pueden enviarse a ${email}.`,
+  },
   privacy: {
     title: "Política de privacidad",
     updated: "Última actualización: 17 de noviembre de 2026",
