@@ -724,6 +724,15 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
             <button type="submit" disabled={smsPending || busy || !smsAgreed || !unaffiliatedOk || phone.replace(/\D/g, "").length < 10} className="btn-primary mt-6 w-full">
               {busy ? s.auth.sending : s.auth.sendCode}
             </button>
+            {/* Agreeing to texts is never the price of using the site: the way in without a phone number is right here. */}
+            {!linking && (
+              <p className="mt-4 rounded-md bg-white/5 px-3 py-2.5 text-sm text-fg-muted ring-1 ring-white/10">
+                {c.textsOptional}{" "}
+                <button type="button" className="link" onClick={() => { setStatus({ kind: "idle" }); setWant("email"); setStep("email"); }}>
+                  {c.useEmail}
+                </button>
+              </p>
+            )}
             <div className="mt-4 text-sm">
               <button type="button" className="link" onClick={backFromContact}>{s.wizard.back}</button>
             </div>
