@@ -22,7 +22,7 @@ if (!to) {
   const todayKeys = new Set(snapshot.colors.map((c) => c.key));
   const mine = colors.map((c) => c.toLowerCase());
   const matched = mine.filter((c) => todayKeys.has(c));
-  const sub = { lang: "en", prefs: { mode: "daily" as const, includeOfficial: true, earliestHour: 6 } };
+  const sub = { lang: "en", prefs: { mode: "daily" as const, earliestHour: 6 } };
   const text = buildMessage(snapshot, matched, sub);
   const r = await sendEmail(to, t("en").emailSubject[matched.length ? "match" : "noMatch"], text, buildEmailHtml(snapshot, matched, sub, text));
   console.log(r.skipped ? `skipped: ${r.skipped}` : r.dryRun ? "dry run (set SMS_DRY_RUN=false)" : `sent, message id ${r.messageId}`);

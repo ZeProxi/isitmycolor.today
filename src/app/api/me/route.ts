@@ -95,5 +95,5 @@ function parsePrefs(v: unknown): AlertPrefs | null {
     if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== o.endDate || o.endDate < today || o.endDate > max) return null;
     endDate = o.endDate;
   }
-  return { mode, includeOfficial: o.includeOfficial === true, earliestHour, endDate };
+  return { mode, earliestHour, endDate };
 }

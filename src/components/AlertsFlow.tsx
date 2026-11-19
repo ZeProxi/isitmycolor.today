@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import type { ColorInfo } from "@/lib/colors";
+import { useEffect, useId, useRef, useState } from "react";
+import { colorInfo, everyoneCalled, matchedColors, type ColorInfo } from "@/lib/colors";
+import { DayMoment } from "./DayMoment";
 import { useLang } from "./LangProvider";
 import { PushButton } from "./PushButton";
 import { AlertHistory } from "./AlertHistory";
 
-type Prefs = { mode: "match" | "daily"; includeOfficial: boolean; earliestHour: number; endDate?: string };
-const DEFAULT_PREFS: Prefs = { mode: "match", includeOfficial: false, earliestHour: 6 };
+type Prefs = { mode: "match" | "daily"; earliestHour: number; endDate?: string };
+const DEFAULT_PREFS: Prefs = { mode: "match", earliestHour: 6 };
 type Kind = "sms" | "email";
 type Contacts = { sms?: string; email?: string };
 type Subscriber = {
@@ -24,17 +25,19 @@ type Subscriber = {
   supporters?: SupportPerson[];
 };
 type SupportPerson = { email: string; status: "invited" | "active"; text?: boolean };
-type Step = "loading" | "channel" | "signin" | "phone" | "email" | "code" | "colors" | "agree" | "done";
+type Step = "loading" | "channel" | "signin" | "phone" | "email" | "code" | "colors" | "when" | "agree" | "support" | "test" | "done";
 const AGREEMENT_VERSION = 1;
 const hasAgreed = (sub: Subscriber | null) => !!sub?.agreedAt && (sub.agreementVersion ?? 0) >= AGREEMENT_VERSION;
 type Status = { kind: "idle" | "busy" | "ok" | "err"; msg?: string };
 
-/** Progress bar position: choosing and entering a contact, its code, colors, agreement. */
-const STEP_INDEX: Record<Exclude<Step, "loading" | "done">, number> = { channel: 0, signin: 0, phone: 0, email: 0, code: 1, colors: 2, agree: 3 };
+/** Progress bar position: choosing and entering a contact, its code, colors, timing, agreement, then the two optional extras. */
+const STEP_INDEX: Record<Exclude<Step, "loading" | "done">, number> = { channel: 0, signin: 0, phone: 0, email: 0, code: 1, colors: 2, when: 3, agree: 4, support: 5, test: 6 };
 
 /**
  * One question per screen:
- *   how to reach you -> number and/or email, each proven with a code -> colors -> agree -> done
+ *   how to reach you -> number and/or email, each proven with a code -> colors -> timing -> agree
+ *   -> (alerts are on from here) invite a support person -> send a test -> done
+ * The last two are optional and can be skipped; leaving the page there loses nothing.
  * Returning people enter the number or email they used and land on "done",
  * where either channel can be added, replaced or removed.
  */
@@ -193,10 +196,18 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
       setPhone("");
       setEmailInput("");
       const ready = d.subscriber && hasAgreed(d.subscriber);
+      // Signing up with both, and the first one turned out to have an alert already: still collect the
+      // second, so it is added to that alert instead of being quietly dropped.
+      const other = !linking && !returning && want === "both" ? (!got.email ? "email" : !got.sms ? "phone" : null) : null;
+      if (ready && other) {
+        setStatus({ kind: "idle" });
+        return setStep(other);
+      }
       if (linking || ready) {
-        // Back on (or straight to) the summary card.
+        // Back on (or straight to) the summary card. Someone who went through sign-up with a contact that
+        // already has an alert is told that this is it, so they don't think a second one was made.
         setLinking(false);
-        setStatus(linking ? { kind: "ok", msg: d.merged ? c.merged : c.linked } : { kind: "idle" });
+        setStatus(linking ? { kind: "ok", msg: d.merged ? c.merged : c.linked } : returning ? { kind: "idle" } : { kind: "ok", msg: d.merged ? c.merged : c.alreadyHad });
         return setStep(ready ? "done" : d.subscriber ? "agree" : "colors");
       }
       setStatus({ kind: "idle" });
@@ -254,6 +265,17 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
     }
   }
 
+  const [invited, setInvited] = useState(0); // support people added during sign-up: turns "Skip" into "Next"
+  // The sign-up test step: where the last test went, and how long until "Send again" is offered.
+  const [lastTest, setLastTest] = useState<{ where: string; email: boolean; sms: boolean; dry: boolean } | null>(null);
+  const [testWait, setTestWait] = useState(0);
+  useEffect(() => {
+    if (testWait <= 0) return;
+    const id = setTimeout(() => setTestWait((n) => n - 1), 1000);
+    return () => clearTimeout(id);
+  }, [testWait]);
+  // What today holds for them, shown as the drop-down banner the moment sign-up finishes.
+  const [finale, setFinale] = useState<{ kind: "mine" | "clear"; hex: string; ink: string } | null>(null);
   const [testCount, setTestCount] = useState(0); // bumps so the history list refreshes after a test
   async function sendTest() {
     setStatus({ kind: "busy", msg: s.prefs.testSending });
@@ -265,16 +287,50 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
         const msg = d.error === "limit" ? c.testLimit : d.error === "sms_stopped" ? s.prefs.smsStopped(prettyNumber(smsNumber)) : c.testFailed;
         return setStatus({ kind: "err", msg });
       }
-      if (d.dryRun) return setStatus({ kind: "ok", msg: c.testDry });
+      setTestWait(30);
+      if (d.dryRun) {
+        setLastTest({ where: "", email: false, sms: false, dry: true });
+        return setStatus({ kind: "ok", msg: c.testDry });
+      }
       const where = [
         d.sms === "sent" && contacts.sms ? prettyPhone(contacts.sms) : null,
         d.email === "sent" && contacts.email ? contacts.email : null,
         d.push === "sent" ? c.thisDevice : null,
       ].filter(Boolean);
+      setLastTest({ where: where.join(", "), email: d.email === "sent", sms: d.sms === "sent", dry: false });
       setStatus({ kind: "ok", msg: c.testSent(where.join(", ")) });
     } catch {
       setStatus({ kind: "err", msg: s.notify.network });
     }
+  }
+
+  /**
+   * Leaves sign-up for the Alerts page. On the way, looks up today's colors: if today's list is in, the
+   * same banner the Today page shows once a day ("your color is up" or "not listed today") drops here
+   * first and is counted as today's, so the first visit to Today afterwards has nothing left to play.
+   * Any trouble getting the colors and they simply land on the Alerts page.
+   */
+  async function finishSetup() {
+    setStatus({ kind: "busy" });
+    let found: typeof finale = null;
+    try {
+      const r = await Promise.race([fetch("/api/colors"), new Promise<never>((_, no) => setTimeout(() => no(new Error("slow")), 2500))]);
+      const d = (await r.json()) as { isForToday?: boolean; layout?: string; colors?: { key: string; raw: string; english: string; spanish: string; siteBackground?: string }[] };
+      const list = d.colors ?? [];
+      if (r.ok && d.isForToday && list.length > 0 && d.layout !== "fallback" && selected.length > 0) {
+        const keys = new Set(list.map((x) => x.key));
+        const matched = matchedColors(selected, keys);
+        const first = list.find((x) => matched.includes(x.key)) ?? (everyoneCalled(keys) && matched.length ? list[0] : undefined);
+        const info = first ? colorInfo(first.key, first) : null;
+        found = { kind: matched.length ? "mine" : "clear", hex: first ? (first.siteBackground ?? info!.hex) : "#edb058", ink: info ? info.text : "#fff" };
+      }
+    } catch {
+      // no banner; the Alerts page is the important part
+    }
+    setFinale(found);
+    setStatus({ kind: "idle" });
+    setStep("done");
+    if (found) setTimeout(() => setFinale(null), 6000); // played once: coming back to this screen later doesn't replay it
   }
 
   async function remove() {
@@ -306,6 +362,8 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
     setEmailInput("");
     setSmsAgreed(false);
     setUnaffiliatedOk(false);
+    setLastTest(null);
+    setTestWait(0);
     setEditing(false);
     setLinking(false);
     setReturning(false);
@@ -337,6 +395,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
     const testing = status.kind === "busy" && status.msg === s.prefs.testSending;
     return (
       <div className="mx-auto max-w-lg space-y-7">
+        {finale && <DayMoment autoplay kind={finale.kind} hex={finale.hex} ink={finale.ink} label={s.home.yoursUp} clearLabel={s.emailSubject.noMatch} />}
         <header>
           <div className="flex items-center gap-3">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-ok text-ink">
@@ -445,25 +504,11 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
               ))}
             </select>
           </Line>
-          <Line label={st.official} tip={st.officialHelp}>
-            <label className="relative inline-flex h-6 w-10 shrink-0 cursor-pointer items-center">
-              <input
-                type="checkbox"
-                className="peer sr-only"
-                aria-label={st.official}
-                checked={prefs.includeOfficial}
-                disabled={busy}
-                onChange={(e) => savePrefs({ ...prefs, includeOfficial: e.target.checked })}
-              />
-              <span className="absolute inset-0 rounded-full bg-white/15 transition peer-checked:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-fg" />
-              <span className="absolute left-0.5 h-5 w-5 rounded-full bg-white transition peer-checked:translate-x-4" />
-            </label>
-          </Line>
           <EndDateField
             row
             value={prefs.endDate}
             disabled={busy}
-            labels={{ ...c, endTitle: st.optOut, endHelp: st.optOutHelp }}
+            labels={{ ...c, endTitle: st.optOut }}
             locale={dateLocale}
             onChange={(endDate) => savePrefs({ ...prefs, endDate })}
           />
@@ -500,9 +545,10 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
           <button
             type="button"
             role="status"
+            key={status.msg /* a new message slides in again */}
             onClick={() => setStatus({ kind: "idle" })}
-            className={`fixed inset-x-4 bottom-24 z-40 mx-auto block max-w-sm rounded-md border bg-ink px-4 py-2.5 text-center text-sm md:bottom-6 ${
-              status.kind === "err" ? "border-danger text-danger" : "border-line-strong text-fg"
+            className={`toast-in fixed bottom-24 right-4 z-40 block max-w-[calc(100vw-2rem)] rounded-md border bg-ink px-4 py-2.5 text-left text-sm font-medium shadow-lg shadow-black/40 sm:max-w-sm md:bottom-6 md:right-6 ${
+              status.kind === "err" ? "border-danger text-danger" : "border-ok/60 text-ok"
             }`}
           >
             {status.msg}
@@ -513,6 +559,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
   }
 
   // ---------- wizard steps ----------
+  const testing = status.kind === "busy" && status.msg === s.prefs.testSending;
   const idx = STEP_INDEX[step];
   const total = c.steps.length;
   const backFromContact = () => {
@@ -760,7 +807,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
         )}
 
         {step === "colors" && (
-          <form onSubmit={(e) => { e.preventDefault(); if (editing) void save("done"); else { setStatus({ kind: "idle" }); setStep("agree"); } }}>
+          <form onSubmit={(e) => { e.preventDefault(); if (editing) void save("done"); else { setStatus({ kind: "idle" }); setStep("when"); } }}>
             {!editing && !existing && supporting.length > 0 && (
               <div className="mb-6 space-y-3 rounded-md border border-line-strong bg-black/25 p-4 text-sm">
                 {supporting.map((p) => (
@@ -796,11 +843,6 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
                 );
               })}
             </div>
-            {!editing && (
-              <div className="mt-6">
-                <EndDateField value={prefs.endDate} disabled={busy} labels={c} locale={dateLocale} onChange={(endDate) => setPrefs({ ...prefs, endDate })} />
-              </div>
-            )}
             {statusLine}
             <div className="mt-6 flex items-center justify-between gap-3">
               <span className="flex flex-wrap items-center gap-x-3 text-sm text-fg-muted">
@@ -818,8 +860,64 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
           </form>
         )}
 
+        {step === "when" && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              // Came back here from a later step, so the alert already exists and is agreed to: save the
+              // changes and carry on, without asking them to agree a second time.
+              if (existing && hasAgreed(existing)) return void save("support");
+              setStatus({ kind: "idle" });
+              setStep("agree");
+            }}
+          >
+            <h2 className="text-xl font-bold sm:text-2xl">{c.whenStepTitle}</h2>
+            <p className="mt-2 text-sm text-fg-muted">{c.whenStepHelp}</p>
+            <div className="mt-5 space-y-2" role="radiogroup" aria-label={c.whenStepTitle}>
+              {(["match", "daily"] as const).map((m) => {
+                const on = prefs.mode === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => setPrefs({ ...prefs, mode: m })}
+                    className={`block w-full rounded-md px-4 py-3 text-left ${on ? "bg-white text-ink" : "bg-white/6 ring-1 ring-white/10 hover:bg-white/10"}`}
+                  >
+                    <span className="block text-base font-semibold">{m === "match" ? c.modeMatchTitle : c.modeDailyTitle}</span>
+                    <span className={`block text-sm ${on ? "text-ink/70" : "text-fg-muted"}`}>{m === "match" ? c.modeMatchHelp : c.modeDailyHelp}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-4 rounded-md bg-white/5 px-3 py-2.5 ring-1 ring-white/10">
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <label htmlFor="wizard-earliest" className="text-sm font-semibold">{c.earliestLabel}</label>
+                <select id="wizard-earliest" className="field w-full py-1.5 text-sm sm:w-auto" value={prefs.earliestHour} onChange={(e) => setPrefs({ ...prefs, earliestHour: Number(e.target.value) })}>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
+                  <option key={h} value={h}>
+                    {h === 12 ? s.prefs.noon : `${h} am`}
+                  </option>
+                ))}
+                </select>
+              </div>
+              <p className="mt-2 text-xs text-fg-muted">{c.earliestHelp}</p>
+            </div>
+            <div className="mt-4">
+              <EndDateField value={prefs.endDate} disabled={busy} labels={c} locale={dateLocale} onChange={(endDate) => setPrefs({ ...prefs, endDate })} />
+            </div>
+            <div className="mt-6 flex items-center justify-between gap-3">
+              <button type="button" className="link text-sm" onClick={() => { setStatus({ kind: "idle" }); setStep("colors"); }}>
+                {s.wizard.back}
+              </button>
+              <button type="submit" disabled={busy} className="btn-primary">{busy ? s.notify.saving : s.wizard.next}</button>
+            </div>
+          </form>
+        )}
+
         {step === "agree" && (
-          <form onSubmit={(e) => { e.preventDefault(); if (agreed) void save("done", { agree: true }); }}>
+          <form onSubmit={(e) => { e.preventDefault(); if (agreed) void save("support", { agree: true }); }}>
             <h2 className="text-xl font-bold sm:text-2xl">{s.agree.title}</h2>
             <p className="mt-2 text-sm text-fg-muted">{s.agree.intro}</p>
             <div className="mt-5 rounded-md border border-white/15 bg-black/25 p-4 text-sm leading-relaxed">
@@ -837,7 +935,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
             </label>
             {statusLine}
             <div className="mt-6 flex items-center justify-between gap-3">
-              <button type="button" className="link text-sm" onClick={() => { setStatus({ kind: "idle" }); setStep("colors"); }}>
+              <button type="button" className="link text-sm" onClick={() => { setStatus({ kind: "idle" }); setStep("when"); }}>
                 {s.wizard.back}
               </button>
               <button type="submit" disabled={busy || !agreed} className="btn-primary">
@@ -845,6 +943,84 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
               </button>
             </div>
           </form>
+        )}
+
+        {/* From here the alert exists and is on. These two are extras: skipping them, or closing the page, loses nothing. */}
+        {step === "support" && (
+          <div>
+            <p className="mb-4 flex items-center gap-2 text-sm font-semibold text-ok">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M5 12.5l4.5 4.5L19 7.5" />
+              </svg>
+              {c.onNow}
+            </p>
+            <h2 className="text-xl font-bold sm:text-2xl">{c.supportStepTitle}</h2>
+            <p className="mb-5 mt-2 text-sm text-fg-muted">{c.supportStepHelp}</p>
+            <Supporters key={existing?.phone} initial={existing?.supporters ?? []} initialName={existing?.name ?? ""} busy={busy} setStatus={setStatus} onGone={signedOut} onChange={setInvited} />
+            {statusLine}
+            <div className="mt-6 flex items-center justify-between gap-3">
+              <button type="button" className="link text-sm" disabled={busy} onClick={() => { setStatus({ kind: "idle" }); setStep("when"); }}>
+                {s.wizard.back}
+              </button>
+              <button type="button" className="btn-primary" disabled={busy} onClick={() => { setStatus({ kind: "idle" }); setStep("test"); }}>
+                {invited > 0 ? s.wizard.next : s.wizard.skip}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === "test" && (
+          <div>
+            <h2 className="text-xl font-bold sm:text-2xl">{c.testStepTitle}</h2>
+            <p className="mt-2 text-sm text-fg-muted">{c.testStepHelp}</p>
+            {!lastTest ? (
+              <>
+                <button type="button" onClick={sendTest} disabled={busy} className="btn-primary mt-5 w-full">
+                  {testing ? s.prefs.testSending : c.testButton}
+                </button>
+                {status.kind === "err" && statusLine}
+                <div className="mt-6 flex items-center justify-between gap-3 text-sm">
+                  <button type="button" className="link" onClick={() => { setStatus({ kind: "idle" }); setStep("support"); }}>
+                    {s.wizard.back}
+                  </button>
+                  <button type="button" className="link" disabled={busy} onClick={finishSetup}>
+                    {s.wizard.skip}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Stays on screen, unlike the passing confirmation elsewhere: this is what they are checking against. */}
+                <p className="mt-5 rounded-md border border-ok/40 bg-ok/10 px-4 py-3 text-sm text-ok" role="status">
+                  {lastTest.dry ? c.testDry : c.testSent(lastTest.where)}
+                </p>
+                <button type="button" className="btn-primary mt-4 w-full" disabled={busy} onClick={finishSetup}>
+                  {c.gotIt}
+                </button>
+                <div className="mt-5 border-t border-line pt-4 text-sm">
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="font-semibold">{c.notReceived}</span>
+                    {testWait > 0 ? (
+                      <span className="tabular-nums text-fg-muted">{c.sendAgainIn(testWait)}</span>
+                    ) : (
+                      <button type="button" className="link" disabled={busy} onClick={sendTest}>
+                        {testing ? s.prefs.testSending : c.sendAgain}
+                      </button>
+                    )}
+                  </p>
+                  {lastTest.email && <p className="mt-2 text-xs text-fg-muted">{c.spamTip}</p>}
+                  {lastTest.sms && <p className="mt-2 text-xs text-fg-muted">{c.textTip}</p>}
+                  {status.kind === "err" && statusLine}
+                  <p className="mt-3 text-xs text-fg-muted">
+                    {c.stillOn}{" "}
+                    <button type="button" className="link" disabled={busy} onClick={finishSetup}>
+                      {c.finishAnyway}
+                    </button>
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
         )}
       </section>
     </div>
@@ -879,55 +1055,65 @@ function monthsFromNow(n: number): string {
   return isoDate(d);
 }
 
-type EndLabels = { endTitle: string; endHelp: string; endNever: string; endMonths: (n: number) => string; endPick: string; endDateLabel: string; endsOn: (d: string) => string };
+type EndLabels = { endTitle: string; endTip?: string; endNever: string; endMonths: (n: number) => string; endPick: string; endDateLabel: string; endsOn: (d: string) => string };
 
 /** "Opt me out automatically": never, a few preset spans from today, or a chosen date. */
 function EndDateField({ value, disabled, labels, locale, onChange, row = false }: { value?: string; disabled: boolean; labels: EndLabels; locale: string; onChange: (endDate: string | undefined) => void; row?: boolean }) {
   // A saved date shows as "specific date"; a preset stays selected only until the page reloads.
   const [choice, setChoice] = useState<string>(value ? "pick" : "never");
   const shown = !value ? "never" : choice === "never" ? "pick" : choice;
+  const selectId = useId();
   const pretty = value ? new Date(`${value}T12:00:00`).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" }) : "";
   return (
     <div className={row ? "px-4 py-3" : "rounded-md bg-white/5 px-3 py-2.5 ring-1 ring-white/10"}>
-      <label className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-        <span>
-          <span className="block text-sm font-semibold">{labels.endTitle}</span>
-          <span className="block text-xs text-fg-muted">{labels.endHelp}</span>
+      {/* Wraps by the room it has, not by screen size: on the Alerts page the controls sit beside the label; in the
+          narrower sign-up card they drop onto their own line under it. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <span className="min-w-0">
+          <span className="flex items-center gap-1.5 text-sm font-semibold">
+            <label htmlFor={selectId}>{labels.endTitle}</label>
+            <Tip text={labels.endTip} />
+          </span>
+          {labels.endTip && <span className="block text-xs text-fg-muted sm:hidden">{labels.endTip}</span>}
         </span>
-        <select
-          className="field py-1.5 text-sm sm:w-auto"
-          value={shown}
-          disabled={disabled}
-          onChange={(e) => {
-            const v = e.target.value;
-            setChoice(v);
-            if (v === "never") onChange(undefined);
-            else if (v === "pick") onChange(value ?? monthsFromNow(12));
-            else onChange(monthsFromNow(Number(v)));
-          }}
-        >
-          <option value="never">{labels.endNever}</option>
-          {END_MONTHS.map((n) => (
-            <option key={n} value={String(n)}>
-              {labels.endMonths(n)}
-            </option>
-          ))}
-          <option value="pick">{labels.endPick}</option>
-        </select>
-      </label>
-      {shown === "pick" && (
-        // Kept only as wide as the date itself: the browser hangs its calendar off the box's left edge,
-        // so a full-width box put the calendar far from the icon.
-        <input
-          type="date"
-          className={`field mt-2 block w-auto py-1.5 text-sm ${row ? "sm:ml-auto" : ""}`}
-          aria-label={labels.endDateLabel}
-          value={value ?? ""}
-          min={isoDate(new Date())}
-          disabled={disabled}
-          onChange={(e) => e.target.value && onChange(e.target.value)}
-        />
-      )}
+        {/* The choice and, when a specific date is wanted, the date beside it: stacked on a phone, side by side from tablet width up. */}
+        <span className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+          <select
+            id={selectId}
+            className="field py-1.5 text-sm sm:w-auto"
+            value={shown}
+            disabled={disabled}
+            onChange={(e) => {
+              const v = e.target.value;
+              setChoice(v);
+              if (v === "never") onChange(undefined);
+              else if (v === "pick") onChange(value ?? monthsFromNow(12));
+              else onChange(monthsFromNow(Number(v)));
+            }}
+          >
+            <option value="never">{labels.endNever}</option>
+            {END_MONTHS.map((n) => (
+              <option key={n} value={String(n)}>
+                {labels.endMonths(n)}
+              </option>
+            ))}
+            <option value="pick">{labels.endPick}</option>
+          </select>
+          {shown === "pick" && (
+            // Kept only as wide as the date itself: the browser hangs its calendar off the box's left edge,
+            // so a full-width box put the calendar far from the icon.
+            <input
+              type="date"
+              className="field block w-auto py-1.5 text-sm"
+              aria-label={labels.endDateLabel}
+              value={value ?? ""}
+              min={isoDate(new Date())}
+              disabled={disabled}
+              onChange={(e) => e.target.value && onChange(e.target.value)}
+            />
+          )}
+        </span>
+      </div>
       {value && <p className={`mt-2 text-xs text-fg-muted ${row ? "sm:text-right" : ""}`}>{labels.endsOn(pretty)}</p>}
     </div>
   );
@@ -979,16 +1165,7 @@ function Line({ label, hint, tip, value, dim, children }: { label: string; hint?
       <span className="min-w-0">
         <span className="flex items-center gap-1.5 text-sm font-semibold">
           {label}
-          {tip && (
-            <span className="group relative hidden sm:inline-flex">
-              <button type="button" aria-label={tip} className="flex h-4 w-4 items-center justify-center rounded-full border border-fg-faint text-[10px] font-bold leading-none text-fg-muted hover:border-fg hover:text-fg">
-                ?
-              </button>
-              <span role="tooltip" className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-64 -translate-x-1/2 rounded-md border border-line-strong bg-ink px-3 py-2 text-xs font-normal leading-relaxed text-fg group-focus-within:block group-hover:block">
-                {tip}
-              </span>
-            </span>
-          )}
+          <Tip text={tip} />
         </span>
         {value !== undefined && <span className={`block break-all text-sm ${dim ? "text-fg-faint" : "text-fg-muted"}`}>{value}</span>}
         {hint && <span className="block text-xs text-fg-muted">{hint}</span>}
@@ -1000,10 +1177,28 @@ function Line({ label, hint, tip, value, dim, children }: { label: string; hint?
 }
 
 /**
+ * A small "?" that shows a longer explanation on hover or keyboard focus. Shown from tablet width up only:
+ * a phone has no hover, so there the same words are printed under the label by whoever uses this.
+ */
+function Tip({ text }: { text?: string }) {
+  if (!text) return null;
+  return (
+    <span className="group relative hidden sm:inline-flex">
+      <button type="button" aria-label={text} className="flex h-4 w-4 items-center justify-center rounded-full border border-fg-faint text-[10px] font-bold leading-none text-fg-muted hover:border-fg hover:text-fg">
+        ?
+      </button>
+      <span role="tooltip" className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-64 -translate-x-1/2 rounded-md border border-line-strong bg-ink px-3 py-2 text-xs font-normal leading-relaxed text-fg group-focus-within:block group-hover:block">
+        {text}
+      </span>
+    </span>
+  );
+}
+
+/**
  * "Support people": invite up to two others to get an email on your color days.
  * An invitation is all that's sent until they accept on the page it links to.
  */
-function Supporters({ initial, initialName, busy, setStatus, onGone }: { initial: SupportPerson[]; initialName: string; busy: boolean; setStatus: (s: Status) => void; onGone: () => void }) {
+function Supporters({ initial, initialName, busy, setStatus, onGone, onChange }: { initial: SupportPerson[]; initialName: string; busy: boolean; setStatus: (s: Status) => void; onGone: () => void; onChange?: (count: number) => void }) {
   const { s } = useLang();
   const t = s.supporter;
   const [people, setPeople] = useState<SupportPerson[]>(initial);
@@ -1030,6 +1225,7 @@ function Supporters({ initial, initialName, busy, setStatus, onGone }: { initial
         return setStatus({ kind: "err", msg });
       }
       setPeople(d.supporters ?? []);
+      onChange?.((d.supporters ?? []).length);
       setAdding(false);
       setEmail("");
       setStatus({ kind: "ok", msg: t.sent(to.trim().toLowerCase()) });
@@ -1046,6 +1242,7 @@ function Supporters({ initial, initialName, busy, setStatus, onGone }: { initial
       if (r.status === 401) return onGone();
       if (!r.ok) return setStatus({ kind: "err", msg: s.notify.removeFailed });
       setPeople(d.supporters ?? []);
+      onChange?.((d.supporters ?? []).length);
       setStatus({ kind: "ok", msg: t.removed });
     } catch {
       setStatus({ kind: "err", msg: s.notify.network });

@@ -39,7 +39,6 @@ export type AlertPrefs = {
   /** "match": only on days a chosen color is listed. "daily": a text every day either way. */
   mode: "match" | "daily";
   /** Add a link to (text) / inline copy of (email) the saved official page. */
-  includeOfficial: boolean;
   /** Don't text before this Mountain-time hour (1-12; default 6). */
   earliestHour: number;
   /** Last day (YYYY-MM-DD, Mountain) alerts are wanted. The day after, the alert is removed as if they pressed Stop. */
@@ -52,7 +51,7 @@ export const SMS_CONSENT_VERSION = 1;
 /** Bump when the agreement wording changes materially; people will be asked again. */
 export const AGREEMENT_VERSION = 1;
 
-export const DEFAULT_PREFS: AlertPrefs = { mode: "match", includeOfficial: false, earliestHour: 6 };
+export const DEFAULT_PREFS: AlertPrefs = { mode: "match", earliestHour: 6 };
 
 export type Subscriber = {
   /**
@@ -81,6 +80,8 @@ export type Subscriber = {
   lastNotifiedKind?: "match" | "daily";
   /** YYYY-MM-DD of the last day we told them we couldn't read the hotline page. */
   lastProblemDate?: string;
+  /** The end date they have already been reminded about. Choosing a different date makes them due a reminder again. */
+  endNoticeFor?: string;
   /** "en" | "es": language for the text message */
   lang?: string;
   prefs?: AlertPrefs;
@@ -103,6 +104,12 @@ export type Subscriber = {
   pid?: string;
   /** What the account holder is called in emails to their support people, e.g. "Sam". */
   name?: string;
+  /**
+   * Alerts that were combined into this one (see mergeAccounts). Links already sent out for them, such as a
+   * support person's "stop" link or an invitation waiting to be accepted, name the old alert; this is how
+   * they still find their way here. `email` is the address the old alert was emailing, if any.
+   */
+  absorbed?: { id: string; pid?: string; email?: string }[];
   /** People who get an email on this person's color days. See supporters.ts. */
   supporters?: { email: string; status: "invited" | "active"; invitedAt: string; confirmedAt?: string; sms?: string; smsConsentAt?: string }[];
   /** Who owns this row once auth is added (Cognito sub). Unused for now. */
@@ -226,20 +233,74 @@ export async function removeContact(id: string, kind: ContactKind) {
 
 /**
  * Fold `from` into `into` after its owner proved they hold one of `from`'s
- * contacts: colors and devices are combined, `into` keeps its own settings and
- * picks up a channel it was missing, and `from` is deleted.
+ * contacts: colors, devices and support people are combined, `into` keeps its
+ * own settings and picks up a channel it was missing, and `from` is deleted.
+ *
+ * It makes no difference which of the two was reached by phone and which by
+ * email: the one the person is signed in to is `into`.
  */
 export async function mergeAccounts(into: Subscriber, from: Subscriber): Promise<void> {
+  await (await client()).send(new PutCommand({ TableName: env.subscribersTable, Item: mergedAccount(into, from, nowIso()) }));
+  await deleteSubscriber(from.phone);
+}
+
+/** What `into` looks like once `from` has been folded into it. Split out so it can be checked without a database. */
+export function mergedAccount(into: Subscriber, from: Subscriber, now: string): Subscriber {
   const colors = Array.from(new Set([...into.colors, ...from.colors])).slice(0, 10);
   const push = [...(into.push ?? []), ...(from.push ?? []).filter((p) => !(into.push ?? []).some((q) => q.endpoint === p.endpoint))].slice(-5);
-  const merged: Subscriber = { ...into, colors, push: push.length ? push : undefined, updatedAt: nowIso() };
+  const merged: Subscriber = { ...into, colors, push: push.length ? push : undefined, updatedAt: now };
   if (!smsOf(into) && smsOf(from)) merged.sms = smsOf(from);
   if (!emailOf(into) && emailOf(from)) {
     merged.email = emailOf(from);
     merged.emailVerified = true;
   }
-  await (await client()).send(new PutCommand({ TableName: env.subscribersTable, Item: merged }));
-  await deleteSubscriber(from.phone);
+  // Support people from both. Someone on both lists is kept once, and the accepted entry wins over a
+  // pending invitation. Nobody is dropped for being over the usual limit of two: that limit is for
+  // inviting, and silently cutting a sponsor off here is the worse outcome. Nobody is their own
+  // support person, so the combined alert's own address is left out.
+  const own = emailOf(merged);
+  const people = [...(into.supporters ?? [])];
+  for (const p of from.supporters ?? []) {
+    if (p.email === own) continue;
+    const at = people.findIndex((q) => q.email === p.email);
+    if (at === -1) people.push(p);
+    else if (people[at].status !== "active" && p.status === "active") people[at] = p;
+  }
+  const kept = people.filter((p) => p.email !== own);
+  if (kept.length) merged.supporters = kept;
+  else delete merged.supporters;
+  // The name support people see, if only the folded-in alert had one.
+  if (!merged.name && from.name) merged.name = from.name;
+  // Remember the folded-in alert (and anything it had folded in before), so links sent out for it keep working.
+  merged.absorbed = [...(into.absorbed ?? []), ...(from.absorbed ?? []), { id: from.phone, pid: from.pid, email: emailOf(from) || undefined }].slice(-20);
+  return merged;
+}
+
+/** The alert that `id` (or public id `pid`) was folded into, with the record of what it was. Null if it never was. */
+export async function findHeir(by: { id?: string; pid?: string }): Promise<{ heir: Subscriber; was: { id: string; pid?: string; email?: string } } | null> {
+  if (!by.id && !by.pid) return null;
+  let ExclusiveStartKey: Record<string, unknown> | undefined;
+  do {
+    const r = await (await client()).send(new ScanCommand({ TableName: env.subscribersTable, FilterExpression: "attribute_exists(absorbed)", ExclusiveStartKey }));
+    for (const i of (r.Items ?? []) as Subscriber[]) {
+      const was = i.absorbed?.find((a) => (by.id ? a.id === by.id : a.pid === by.pid));
+      if (was) return { heir: i, was };
+    }
+    ExclusiveStartKey = r.LastEvaluatedKey;
+  } while (ExclusiveStartKey);
+  return null;
+}
+
+/**
+ * The alert an emailed "stop these emails" link is for. Normally that is simply the alert it names. If that
+ * alert was folded into another, it is the combined one, but only while the combined one is emailing the
+ * same address the link was sent to: otherwise that address already gets nothing, and there is nothing to stop.
+ */
+export async function accountForEmailLink(id: string): Promise<Subscriber | null> {
+  const direct = await getSubscriber(id);
+  if (direct) return direct;
+  const found = await findHeir({ id });
+  return found && found.was.email && emailOf(found.heir) === found.was.email ? found.heir : null;
 }
 
 export async function deleteSubscriber(phone: string) {
@@ -354,6 +415,19 @@ export async function markProblemNotice(phone: string, date: string) {
       Key: { phone },
       UpdateExpression: "SET lastProblemDate = :d, updatedAt = :u",
       ExpressionAttributeValues: { ":d": date, ":u": nowIso() },
+      ConditionExpression: "attribute_exists(phone)",
+    }),
+  );
+}
+
+/** Records that someone has been told their alerts are about to end on `endDate`. */
+export async function markEndNotice(phone: string, endDate: string) {
+  await (await client()).send(
+    new UpdateCommand({
+      TableName: env.subscribersTable,
+      Key: { phone },
+      UpdateExpression: "SET endNoticeFor = :d, updatedAt = :u",
+      ExpressionAttributeValues: { ":d": endDate, ":u": nowIso() },
       ConditionExpression: "attribute_exists(phone)",
     }),
   );

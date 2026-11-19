@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { clearEmail, deleteSubscriber } from "@/lib/dynamo";
+import { accountForEmailLink, clearEmail, deleteSubscriber } from "@/lib/dynamo";
 import { deleteAlerts } from "@/lib/alertlog";
 import { verifyUnsubscribe } from "@/lib/unsubscribe";
 import { ready } from "@/lib/config";
@@ -41,10 +41,12 @@ export async function POST(req: NextRequest) {
   // A mail app's own unsubscribe button posts this field and never shows the response.
   const oneClick = form?.get("List-Unsubscribe") === "One-Click";
   if (!ok) return oneClick ? new Response("invalid link", { status: 400 }) : toPage(p, t);
+  // Usually the alert the link names; the combined one if that alert was folded into another since.
+  const id = (await accountForEmailLink(p))?.phone ?? p;
   if (form?.get("all") === "1" && !oneClick) {
-    await Promise.all([deleteSubscriber(p), deleteAlerts(p)]);
+    await Promise.all([deleteSubscriber(id), deleteAlerts(id)]);
     return toPage(p, t, "all");
   }
-  await clearEmail(p, "unsubscribe");
+  await clearEmail(id, "unsubscribe");
   return oneClick ? new Response("ok", { headers: { "cache-control": "no-store" } }) : toPage(p, t, "1");
 }

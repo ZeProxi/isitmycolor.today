@@ -51,6 +51,18 @@ export const env = {
    * Mountain-time hour after which, if today's page still can't be read, subscribers are told so
    * (so that silence is never mistaken for "not my color").
    */
+  /** How long one alert run keeps starting new sends. Whoever is left waits for the next run. Keep it under the host's request limit. */
+  get notifyBudgetSeconds() {
+    return Number(read("NOTIFY_BUDGET_SECONDS", "20"));
+  },
+  /** How many people one alert run handles at the same time. */
+  get notifyParallel() {
+    return Number(read("NOTIFY_PARALLEL", "8"));
+  },
+  /** Texts per second the sending number is allowed (a US toll-free number: 3). Sends are spaced to stay under it. */
+  get smsPerSecond() {
+    return Number(read("SMS_PER_SECOND", "3"));
+  },
   get unreadableNoticeHour() {
     return Number(read("UNREADABLE_NOTICE_HOUR", "8"));
   },

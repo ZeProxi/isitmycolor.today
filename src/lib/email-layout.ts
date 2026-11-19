@@ -44,9 +44,9 @@ export function emailShell(opts: { lang: "en" | "es"; preheader: string; body: s
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${INK}">
 <tr><td align="center" style="padding:28px 16px">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px">
-    <tr><td style="padding:0 0 20px">
-      <img src="${LOGO}" width="220" height="133" alt="${esc(name)}" style="display:block;border:0;width:220px;max-width:70%;height:auto">
-      <p style="margin:12px 0 0;font:600 18px/1.2 ${FONT};color:${FG}">${esc(name)}</p>
+    <tr><td align="center" style="padding:0 0 20px;text-align:center">
+      <img src="${LOGO}" width="220" height="133" alt="${esc(name)}" style="display:block;border:0;width:220px;max-width:70%;height:auto;margin:0 auto">
+      <p style="margin:12px 0 0;font:600 18px/1.2 ${FONT};color:${FG};text-align:center">${esc(name)}</p>
     </td></tr>
     <tr><td style="background:${PANEL};border:1px solid ${LINE};border-radius:8px;padding:26px 24px">
 ${opts.body}
@@ -91,6 +91,41 @@ export function codeEmail(code: string, lang: "en" | "es"): { subject: string; t
     subject: s.subject,
     text: `${s.text}\n\n${s.ignore}`,
     html: emailShell({ lang, preheader: s.expires, body, footer: esc(s.ignore) }),
+  };
+}
+
+/**
+ * Sent once, when a support person accepts: a confirmation they can keep, with the link to stop. Without
+ * it, the only place that link exists is inside alert emails, which may be days away.
+ */
+export function supporterWelcomeEmail(name: string, lang: "en" | "es", stop: string, text?: string): { subject: string; text: string; html: string } {
+  const s =
+    lang === "es"
+      ? {
+          subject: `Recibirás las alertas de color de ${name}`,
+          title: "Listo",
+          lead: `Recibirás un correo corto de isitmycolor.today los días en que salga el color de ${name} en la línea UA de Wasatch Behavioral Health. Nada más.`,
+          keep: "Guarda este correo: aquí está el enlace para dejar de recibirlos cuando quieras. Cada alerta también lo trae.",
+          button: "Dejar de recibir estos correos",
+          texts: "¿Quieres también un texto esos días?",
+        }
+      : {
+          subject: `You'll get ${name}'s color-day alerts`,
+          title: "You're set",
+          lead: `You'll get one short email from isitmycolor.today on the days ${name}'s color is listed on the Wasatch Behavioral Health UA hotline. Nothing else.`,
+          keep: "Keep this email: it has the link to stop whenever you want. Every alert carries the same link.",
+          button: "Stop these emails",
+          texts: "Want a text on those days too?",
+        };
+  const body = `      <p style="margin:0;font:700 22px/1.2 ${FONT};color:${FG}">${esc(s.title)}</p>
+      <p style="margin:10px 0 0;font:15px/1.55 ${FONT};color:${MUTED}">${esc(s.lead)}</p>
+      <p style="margin:10px 0 0;font:15px/1.55 ${FONT};color:${MUTED}">${esc(s.keep)}</p>
+      <p style="margin:22px 0 0"><a href="${esc(stop)}" style="display:inline-block;border:1px solid ${LINE};color:${FG};border-radius:6px;padding:11px 17px;font:600 15px/1 ${FONT};text-decoration:none">${esc(s.button)}</a></p>
+      ${text ? `<p style="margin:18px 0 0;font:15px/1.55 ${FONT}"><a href="${esc(text)}" style="color:${MUTED}">${esc(s.texts)}</a></p>` : ""}`;
+  return {
+    subject: s.subject,
+    text: `${s.lead}\n\n${s.keep}\n\n${s.button}: ${stop}${text ? `\n\n${s.texts} ${text}` : ""}`,
+    html: emailShell({ lang, preheader: s.keep, body }),
   };
 }
 

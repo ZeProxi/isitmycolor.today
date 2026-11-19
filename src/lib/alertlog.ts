@@ -15,7 +15,7 @@ export type ChannelStatus = "sent" | "failed" | "dry-run" | "skipped" | "stopped
 export type AlertEntry = {
   at: string; // ISO timestamp
   date: string; // the color day it was about
-  kind: "match" | "daily" | "test" | "notice"; // "notice": we told them we couldn't read the page that day
+  kind: "match" | "daily" | "test" | "notice" | "ending"; // "notice": we couldn't read the page that day; "ending": their end date is near
   colors: string[]; // matched color keys
   sms?: ChannelStatus;
   email?: ChannelStatus;

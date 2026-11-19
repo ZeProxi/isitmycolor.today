@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
-import { runNotify } from "@/lib/notify";
+import { runNotify, NotifyBusy } from "@/lib/notify";
 import { env } from "@/lib/env";
 import { ready } from "@/lib/config";
 import { clientIp } from "@/lib/ratelimit";
@@ -54,10 +54,16 @@ async function handle(req: NextRequest) {
       skipped: result.skipped.length,
       notices: result.unreadableNotices.length,
       errors: result.errors.length,
+      left: result.deferred,
       ms: Date.now() - started,
     });
     return Response.json(result);
   } catch (e) {
+    // Another run is still sending (the scheduler called again while it worked). Not a failure.
+    if (e instanceof NotifyBusy) {
+      log.info("notify_busy");
+      return Response.json({ busy: true });
+    }
     log.error("notify_run_failed", { err: reason(e), ms: Date.now() - started });
     return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }

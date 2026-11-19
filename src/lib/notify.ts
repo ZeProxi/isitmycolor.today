@@ -1,5 +1,5 @@
 import { fetchColors, type ColorsSnapshot } from "./scrape";
-import { deleteSubscriber, emailOf, getKnownColorKeys, listActiveSubscribers, markNotified, markProblemNotice, saveSnapshot, setSmsStopped, smsOf, DEFAULT_PREFS, type Subscriber } from "./dynamo";
+import { deleteSubscriber, emailOf, getKnownColorKeys, listActiveSubscribers, markEndNotice, markNotified, markProblemNotice, saveSnapshot, setSmsStopped, smsOf, DEFAULT_PREFS, type Subscriber } from "./dynamo";
 import { sendSms, listOptedOut } from "./sms";
 import { sendEmail, EmailQuotaError } from "./email";
 import { todayIsoMountain, hourMountain, nowIso } from "./dates";
@@ -8,6 +8,8 @@ import { ready } from "./config";
 import { log, reason, who } from "./log";
 import { requestScreenshot } from "./screenshot";
 import { diagnose, alertOwner } from "./health";
+import { pooled } from "./pool";
+import { takeRunLock, releaseRunLock } from "./runlock";
 import { sendPush } from "./push";
 import { deleteAlerts, logAlert, type ChannelStatus } from "./alertlog";
 import { unsubscribeUrl } from "./unsubscribe";
@@ -31,6 +33,8 @@ export type NotifyResult = {
   /** accounts told this run that today's page couldn't be read */
   unreadableNotices: string[];
   errors: { phone: string; error: string }[];
+  /** people due an alert that this run ran out of time for; the next run sends to them */
+  deferred: number;
 };
 
 type Who = Pick<Subscriber, "lang" | "prefs">;
@@ -95,8 +99,7 @@ export function buildMessage(snapshot: ColorsSnapshot, matched: string[], sub: W
     // A long list of colors would tip this into a second billed text; say how many were called instead.
     if (plainLetters(msg).length > 160) msg = s.smsNoMatchShort(shortDay, snapshot.colors.length);
   }
-  const url = dayPageUrl(snapshot);
-  if (sub.prefs?.includeOfficial && url) msg += s.smsLink(url);
+  // No link to the saved copy here: it would tip every text into a second billed message. Emails carry it.
   return plainLetters(msg);
 }
 
@@ -125,7 +128,7 @@ export function forEmail(message: string): string {
   return message.replace(/\s*(Reply STOP to opt out|Responde STOP para darte de baja)\.\s*$/, "");
 }
 
-/** HTML email: today's colors as flat tiles, the same sentence as the text, plus (if asked) the official page as captured. */
+/** HTML email: today's colors as flat tiles, the same sentence as the text, plus the official page as captured that morning. */
 export function buildEmailHtml(
   snapshot: ColorsSnapshot,
   matched: string[],
@@ -156,7 +159,8 @@ export function buildEmailHtml(
       </td></tr>`;
     })
     .join("");
-  const official = sub.prefs?.includeOfficial
+  // The person's own email always carries the saved copy. A support person's never does: they get the list and whose day it is, nothing more.
+  const official = !about
     ? `<div style="margin-top:22px;padding:16px;border:1px solid #ddd;border-radius:6px;background:#fff;color:#111">
          <p style="font:bold 13px Arial,sans-serif;margin:0 0 10px;color:#555">${esc(snapshot.sourceUrl)} &middot; ${esc(s.day.captured(capturedAt(snapshot, l)))}</p>
          ${snapshot.announcement ? `<p style="font:bold 17px Georgia,serif;margin:0 0 12px">${esc(snapshot.announcement)}</p>` : ""}
@@ -207,7 +211,7 @@ async function notifySupporters(snapshot: ColorsSnapshot, matched: string[], sub
       // never the saved official page or the holder's own settings: just today's list and whose day it is
       // the offer of texts appears only once texting is live, and only until they've taken it
       const offer = !env.smsPending && !person.sms ? await textUrl(sub, person.email) : undefined;
-      const html = buildEmailHtml(snapshot, matched, { lang: sub.lang, prefs: undefined }, line, stop, { name, textUrl: offer });
+      const html = buildEmailHtml(snapshot, matched, { lang: sub.lang }, line, stop, { name, textUrl: offer });
       await sendEmail(person.email, s.supporter.emailSubject(name), `${line}\n\n${s.supporter.emailStop}: ${stop}`, html, undefined, undefined, stop);
     } catch (e) {
       log.error("alert_failed", { kind: "supporter", ch: "email", who: who(sub.phone), err: reason(e) });
@@ -230,15 +234,16 @@ async function notifySupporters(snapshot: ColorsSnapshot, matched: string[], sub
  * later. It does not count as their daily alert, so if the page comes good
  * later they still get the real one. On those rare days that means two messages.
  */
-async function sendUnreadableNotices(today: string, hour: number): Promise<string[]> {
+async function sendUnreadableNotices(today: string, hour: number, deadline: number): Promise<string[]> {
   if (env.siteSunset) return [];
   if (hour < env.unreadableNoticeHour || hour < env.notifyStartHour || hour >= env.notifyEndHour) return [];
   const sent: string[] = [];
   const optedOut = await listOptedOut();
-  for (const sub of await listActiveSubscribers()) {
-    if (sub.lastProblemDate === today || sub.lastNotifiedDate === today) continue; // told already, or already got today's real alert
-    if (hour < (sub.prefs?.earliestHour ?? DEFAULT_PREFS.earliestHour)) continue;
-    if (sub.prefs?.endDate && today > sub.prefs.endDate) continue;
+  const one = async (sub: Subscriber) => {
+    if (sub.lastProblemDate === today || sub.lastNotifiedDate === today) return; // told already, or already got today's real alert
+    if (hour < (sub.prefs?.earliestHour ?? DEFAULT_PREFS.earliestHour)) return;
+    if (sub.prefs?.endDate && today > sub.prefs.endDate) return;
+    if (Date.now() > deadline) return; // out of time: the next run tells them
     const l = langOf(sub);
     const u = t(l).unreadable;
     const number = smsOf(sub);
@@ -270,11 +275,14 @@ async function sendUnreadableNotices(today: string, hour: number): Promise<strin
       push = pr.dryRun ? "dry-run" : pr.sent > 0 ? "sent" : "failed";
     }
     const went = [sms, email, push].some((v) => v === "sent" || v === "dry-run");
-    if (!went) continue; // nothing reached them: try again on the next run
+    if (!went) return; // nothing reached them: try again on the next run
     await markProblemNotice(sub.phone, today);
     await logAlert(sub.phone, { date: today, kind: "notice", colors: [], sms, email, push });
     sent.push(sub.phone);
-  }
+  };
+  await pooled(await listActiveSubscribers(), env.notifyParallel, (sub) =>
+    one(sub).catch((e) => log.error("alert_failed", { kind: "notice", who: who(sub.phone), date: today, err: reason(e) })),
+  );
   return sent;
 }
 
@@ -284,6 +292,82 @@ async function sendUnreadableNotices(today: string, hour: number): Promise<strin
  */
 export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyResult> {
   await ready();
+  // One run at a time. The scheduler calls again when a run takes longer than it waits, and two runs
+  // working through the same list would each send to people the other hasn't marked yet.
+  if (!(await takeRunLock(env.notifyBudgetSeconds + 20))) throw new NotifyBusy();
+  try {
+    return await run(opts, Date.now() + env.notifyBudgetSeconds * 1000);
+  } finally {
+    await releaseRunLock();
+  }
+}
+
+/** The day before a YYYY-MM-DD date, in the same form. */
+function dayBefore(iso: string): string {
+  const d = new Date(`${iso}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/** What the end-date reminder says, in one language. `text` is the text message. */
+export function endingWords(l: Lang, endDate: string, today: string): { title: string; body: string; more: string; text: string } {
+  const u = t(l).ending;
+  const when = endDate === today ? u.when.today : u.when.tomorrow;
+  const date = new Date(`${endDate}T12:00:00Z`).toLocaleDateString(l === "es" ? "es-US" : "en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
+  return { title: u.title(when), body: u.body(date), more: u.more, text: plainLetters(u.sms(when, date)) };
+}
+
+/**
+ * One reminder that someone's alerts are about to end, on every channel they have. After their end date
+ * their alerts stop and their data is deleted, which is what they asked for when they set it; this is for
+ * the person who set it months ago and whose plans have changed since. It is separate from that day's
+ * alert, which still goes. Marked as sent only if it reached them, so a failure is retried next run.
+ */
+async function sendEndingNotice(sub: Subscriber, endDate: string, today: string, optedOut: Set<string> | null): Promise<void> {
+  const l = langOf(sub);
+  const { title, body, more, text } = endingWords(l, endDate, today);
+  const number = smsOf(sub);
+  const address = sub.emailStopped ? undefined : emailOf(sub);
+  let sms: ChannelStatus | undefined, email: ChannelStatus | undefined, push: ChannelStatus | undefined;
+  const failed = (ch: string) => (e: unknown) => {
+    log.error("alert_failed", { kind: "ending", ch, who: who(sub.phone), date: today, err: reason(e) });
+    return "failed" as ChannelStatus;
+  };
+  if (number && !sub.smsStopped && !optedOut?.has(number)) {
+    sms = await sendSms(number, text).then((r) => (r.dryRun ? "dry-run" : "sent") as ChannelStatus, failed("sms"));
+  }
+  if (address) {
+    const unsub = unsubscribeUrl(sub.phone);
+    const { fg, muted, font } = emailText;
+    const inner = `      <p style="margin:0;font:700 24px/1.2 ${font};color:${EMAIL_ACCENT}">${esc(title)}</p>
+      <p style="margin:12px 0 0;font:16px/1.55 ${font};color:${fg}">${esc(body)}</p>
+      <p style="margin:12px 0 0;font:14px/1.55 ${font};color:${muted}">${esc(more)}</p>`;
+    const html = emailShell({ lang: l, preheader: body, body: inner, footer: `${esc(t(l).emailWhy)} <a href="${esc(unsub)}" style="color:${muted}">${esc(t(l).emailUnsubscribe)}</a>` });
+    email = await sendEmail(address, title, `${title}. ${body}\n\n${more}\n\n${t(l).emailUnsubscribe}: ${unsub}`, html, undefined, undefined, unsub).then(
+      (r) => (r.skipped ? "skipped" : r.dryRun ? "dry-run" : "sent") as ChannelStatus,
+      failed("email"),
+    );
+  }
+  if (sub.push?.length) {
+    const pr = await sendPush(sub.phone, sub.push, { title, body, url: "/notify", tag: `ending-${endDate}` });
+    push = pr.dryRun ? "dry-run" : pr.sent > 0 ? "sent" : "failed";
+  }
+  if (![sms, email, push].some((v) => v === "sent" || v === "dry-run")) return; // nothing reached them: try again on the next run
+  await markEndNotice(sub.phone, endDate);
+  sub.endNoticeFor = endDate;
+  await logAlert(sub.phone, { date: today, kind: "ending", colors: [], sms, email, push });
+}
+
+/** Thrown when a run is asked for while another is still sending. Nothing was done; nothing is wrong. */
+export class NotifyBusy extends Error {
+  constructor() {
+    super("another run is still sending");
+    this.name = "NotifyBusy";
+  }
+}
+
+/** `deadline` is when this run stops starting new sends; whoever is left waits for the next run. */
+async function run(opts: { force?: boolean }, deadline: number): Promise<NotifyResult> {
   const hour = hourMountain();
   let snapshot: ColorsSnapshot;
   try {
@@ -291,7 +375,7 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
     await alertOwner("fetch_failed", detail);
-    await sendUnreadableNotices(todayIsoMountain(), hour).catch((err) => log.error("unreadable_notices_failed", { err: reason(err) }));
+    await sendUnreadableNotices(todayIsoMountain(), hour, deadline).catch((err) => log.error("unreadable_notices_failed", { err: reason(err) }));
     throw e;
   }
   const problem = diagnose(snapshot, hour);
@@ -314,6 +398,7 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
     expired: [],
     unreadableNotices: [],
     errors: [],
+    deferred: 0,
   };
 
   if (snapshot.date) {
@@ -335,7 +420,7 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
   // Today's page isn't usable (still yesterday's, no date, or no colors on it). Nobody is alerted from it,
   // and once the morning is under way people are told, so silence isn't taken for "not my color".
   if ((!pageIsForToday || snapshot.colors.length === 0) && !opts.force) {
-    result.unreadableNotices = await sendUnreadableNotices(today, hour).catch((err) => {
+    result.unreadableNotices = await sendUnreadableNotices(today, hour, deadline).catch((err) => {
       log.error("unreadable_notices_failed", { err: reason(err) });
       return [];
     });
@@ -358,7 +443,8 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
 
   // Numbers that replied STOP: the carrier already blocks them; we stop trying and say so.
   const optedOut = await listOptedOut();
-  for (const sub of subscribers) {
+  // Several people at once, so a busy morning still fits inside one run. See src/lib/pool.ts.
+  const one = async (sub: Subscriber) => {
     // They asked to be opted out and forgotten after this date: same as pressing Stop.
     const endDate = sub.prefs?.endDate;
     if (endDate && today > endDate) {
@@ -369,7 +455,11 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
         log.error("expire_failed", { who: who(sub.phone), err: reason(e) });
         result.errors.push({ phone: sub.phone, error: e instanceof Error ? e.message : String(e) });
       }
-      continue;
+      return;
+    }
+    // Their end date is tomorrow (or today): say so once, so nobody is caught out by a date they forgot.
+    if (endDate && sub.endNoticeFor !== endDate && today >= dayBefore(endDate) && hour >= (sub.prefs?.earliestHour ?? DEFAULT_PREFS.earliestHour) && Date.now() <= deadline) {
+      await sendEndingNotice(sub, endDate, today, optedOut).catch((e) => log.error("alert_failed", { kind: "ending", who: who(sub.phone), date: today, err: reason(e) }));
     }
     const number = smsOf(sub);
     if (optedOut && number) {
@@ -385,11 +475,11 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
     const matched = matchedColors(sub.colors, todayKeys);
     if (matched.length === 0 && (prefs.mode !== "daily" || partial)) {
       result.skipped.push({ phone: sub.phone, reason: partial ? "no match on a partial reading" : "no matching color" });
-      continue;
+      return;
     }
     if (hour < prefs.earliestHour && !opts.force) {
       result.skipped.push({ phone: sub.phone, reason: `before earliest hour (${prefs.earliestHour})` });
-      continue;
+      return;
     }
     if (sub.lastNotifiedDate === snapshot.date && !opts.force) {
       // One alert a day, with one exception: someone already told "not your color" whose color has since
@@ -397,8 +487,13 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
       const correction = matched.length > 0 && sub.lastNotifiedKind === "daily";
       if (!correction) {
         result.skipped.push({ phone: sub.phone, reason: "already notified today" });
-        continue;
+        return;
       }
+    }
+    // Out of time for this run: they are left exactly as they were, and the next run sends to them.
+    if (Date.now() > deadline) {
+      result.deferred++;
+      return;
     }
     try {
       const message = buildMessage(snapshot, matched, sub);
@@ -461,9 +556,16 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
       log.error("alert_undelivered", { who: who(sub.phone), date: snapshot.date, err: reason(e) });
       result.errors.push({ phone: sub.phone, error: e instanceof Error ? e.message : String(e) });
     }
-  }
+  };
+  await pooled(subscribers, env.notifyParallel, (sub) =>
+    // Anything `one` didn't handle itself stops at this person, not at the whole run.
+    one(sub).catch((e) => {
+      log.error("alert_undelivered", { who: who(sub.phone), date: snapshot.date, err: reason(e) });
+      result.errors.push({ phone: sub.phone, error: e instanceof Error ? e.message : String(e) });
+    }),
+  );
   if (partial && !opts.force) {
-    result.unreadableNotices = await sendUnreadableNotices(today, hour).catch((err) => {
+    result.unreadableNotices = await sendUnreadableNotices(today, hour, deadline).catch((err) => {
       log.error("unreadable_notices_failed", { err: reason(err) });
       return [];
     });

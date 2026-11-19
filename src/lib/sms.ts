@@ -18,6 +18,18 @@ export function normalizePhone(raw: string): string | null {
   return null;
 }
 
+/**
+ * Spaces texts out. A number may only send so many a second, and with several people handled at once
+ * a run would otherwise go over it. Each send books the next free slot and waits for it.
+ */
+let nextSlot = 0;
+async function turn(): Promise<void> {
+  const now = Date.now();
+  const at = Math.max(now, nextSlot);
+  nextSlot = at + 1000 / Math.max(0.1, env.smsPerSecond);
+  if (at > now) await new Promise((r) => setTimeout(r, at - now));
+}
+
 export async function sendSms(
   phone: string,
   message: string,
@@ -27,6 +39,7 @@ export async function sendSms(
     console.log(`[SMS_DRY_RUN] to ${phone}: ${message}`);
     return { dryRun: true };
   }
+  await turn();
   const r = await sns().send(
     new PublishCommand({
       PhoneNumber: phone,

@@ -14,7 +14,7 @@ import { useEffect, useRef, useState } from "react";
  * For the site's owner (and on a development copy), adding ?moment=clear or ?moment=mine to the address plays it on demand; ?moment=clear-load and
  * ?moment=mine-load play it the way it runs on the day, driven by the stylesheet.
  */
-export function DayMoment({ kind, pending = false, preview = false, hex, ink = "#fff", label = "", clearLabel = "" }: { kind: "clear" | "mine"; pending?: boolean; preview?: boolean; hex: string; ink?: string; label?: string; clearLabel?: string }) {
+export function DayMoment({ kind, pending = false, preview = false, autoplay = false, hex, ink = "#fff", label = "", clearLabel = "" }: { kind: "clear" | "mine"; pending?: boolean; preview?: boolean; /** play it now, dropped by the script, and mark today's as seen: used when sign-up finishes */ autoplay?: boolean; hex: string; ink?: string; label?: string; clearLabel?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const curtain = useRef<HTMLDivElement>(null);
   const icon = useRef<SVGSVGElement>(null);
@@ -23,6 +23,10 @@ export function DayMoment({ kind, pending = false, preview = false, hex, ink = "
   // `scripted` is the other way in: the ?moment= preview, where the script drops the banner on request.
   const [which, setWhich] = useState<"clear" | "mine" | null>(pending ? kind : null);
   const [scripted, setScripted] = useState(false);
+  // Today's banner is marked as seen once per page, however many times the effect below runs. In development
+  // React runs effects twice; the second "mark as seen" was answered "already shown", which took the banner
+  // straight back down and looked like a flicker.
+  const claimed = useRef(false);
 
   useEffect(() => {
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -55,17 +59,31 @@ export function DayMoment({ kind, pending = false, preview = false, hex, ink = "
       later(CLEAR_MS + 600, () => section?.classList.remove("moment-hold"));
       return stop;
     }
-    if (pending) {
+    if (autoplay) {
+      // Sign-up has just finished: show today's answer here and now, and count it as today's banner, so the
+      // Today page doesn't play it a second time.
+      later(0, () => {
+        setScripted(true);
+        setWhich(kind);
+      });
+      if (!claimed.current) {
+        claimed.current = true;
+        fetch("/api/me/moment", { method: "POST" }).catch(() => {});
+      }
+      return stop;
+    }
+    if (pending && !claimed.current) {
+      claimed.current = true;
       // It is on screen now: mark today's as seen. If another device got there first, take it down quietly.
       fetch("/api/me/moment", { method: "POST" })
         .then((r) => (r.ok ? r.json() : { play: true }))
         .then((d) => alive && !d.play && setWhich(null))
         .catch(() => {});
-    } else if (kind === "mine") {
+    } else if (!pending && kind === "mine") {
       later(1100, shakeMine); // no banner today, but your color is up: the tile gives a short shake once it has landed
     }
     return stop;
-  }, [kind, pending, preview]);
+  }, [kind, pending, preview, autoplay]);
 
   // While it is up: the face moves, good news gets confetti, and it is taken away once it has lifted.
   useEffect(() => {

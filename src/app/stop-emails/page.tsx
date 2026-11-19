@@ -5,7 +5,7 @@ import { getLang } from "@/lib/lang-server";
 import { t, isLang } from "@/lib/i18n";
 import { env } from "@/lib/env";
 import { ready } from "@/lib/config";
-import { getSubscriber, smsOf } from "@/lib/dynamo";
+import { accountForEmailLink, smsOf } from "@/lib/dynamo";
 import { verifyUnsubscribe } from "@/lib/unsubscribe";
 import { PageSkeleton } from "@/components/PageSkeleton";
 
@@ -40,7 +40,7 @@ async function Content({ searchParams }: { searchParams: Search }) {
   const demo = process.env.NODE_ENV !== "production" ? one(sp.demo) : "";
   const done = demo === "gone" ? "all" : demo.startsWith("done") ? "1" : one(sp.done);
   const valid = !!demo || verifyUnsubscribe(p, tok);
-  const real = valid && !demo && done !== "all" ? await getSubscriber(p).catch(() => null) : null;
+  const real = valid && !demo && done !== "all" ? await accountForEmailLink(p).catch(() => null) : null;
   const sub = demo ? { lang: undefined, sms: demo === "others" || demo === "done" ? "+10000000000" : "", phone: "demo", smsStopped: undefined, push: [] } : real;
   // The page speaks the language the alerts are sent in, when we know it.
   const lang = sub && isLang(sub.lang) ? sub.lang : await getLang();

@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { UpdateCommand } from "@aws-sdk/lib-dynamodb";
-import { docClient, ensurePid, findByPid, findSupporting, getSubscriber, type Subscriber } from "./dynamo";
+import { docClient, ensurePid, findByPid, findHeir, findSupporting, getSubscriber, type Subscriber } from "./dynamo";
 import { env } from "./env";
 import { ready } from "./config";
 import { nowIso } from "./dates";
@@ -56,8 +56,12 @@ export const textUrl = (sub: Subscriber, email: string) => link("text", sub, ema
 export async function resolveSupporterLink(purpose: Purpose, p: string, email: string, t: string): Promise<string | null> {
   if (!p || !email || !t) return null;
   const legacy = p.startsWith("+") || p.startsWith("email:") || p.startsWith("acct:");
-  const id = legacy ? p : (await findByPid(p))?.phone;
-  return id && verifySupporterLink(purpose, id, email, t) ? id : null;
+  const direct = legacy ? await getSubscriber(p) : await findByPid(p);
+  if (direct) return verifySupporterLink(purpose, direct.phone, email, t) ? direct.phone : null;
+  // The alert this link names is gone. If it was combined into another, its support people moved with it,
+  // so the link (signed for the old alert) is honored for the combined one.
+  const found = await findHeir(legacy ? { id: p } : { pid: p });
+  return found && verifySupporterLink(purpose, found.was.id, email, t) ? found.heir.phone : null;
 }
 
 export function verifySupporterLink(purpose: Purpose, id: string, email: string, t: string): boolean {
@@ -82,13 +86,18 @@ export async function saveSupporters(id: string, supporters: Supporter[], name?:
   );
 }
 
-/** The supporter pressed "yes" on the invitation page. Returns the account, or null if the invitation is gone. */
-export async function confirmSupporter(id: string, email: string): Promise<Subscriber | null> {
+/**
+ * The supporter pressed "yes" on the invitation page. Returns the account and whether this press is the one
+ * that accepted (false if they had already accepted), or null if the invitation is gone.
+ */
+export async function confirmSupporter(id: string, email: string): Promise<{ sub: Subscriber; first: boolean } | null> {
   const sub = await getSubscriber(id);
   const list = sub?.supporters ?? [];
-  if (!sub || !list.some((s) => s.email === email)) return null;
+  const me = list.find((s) => s.email === email);
+  if (!sub || !me) return null;
+  if (me.status === "active") return { sub, first: false };
   await saveSupporters(id, list.map((s) => (s.email === email ? { ...s, status: "active" as const, confirmedAt: s.confirmedAt ?? nowIso() } : s)));
-  return sub;
+  return { sub, first: true };
 }
 
 /** Remove a supporter (they pressed stop, or the holder removed them). Safe to call when they're already gone. */

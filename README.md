@@ -228,6 +228,23 @@ Recommended set-up, done once in AWS (none of it is in this repo): a retention p
 (this site uses 90 days, which the Privacy page states), a metric filter on `{ $.lvl = "error" }`, and an
 alarm on that metric that emails the owner.
 
+## Busy mornings
+
+One alert run handles several people at once (`NOTIFY_PARALLEL`, default 8) and stops starting new sends
+after `NOTIFY_BUDGET_SECONDS` (default 20), which must stay under the host's limit for one request. Whoever
+is left is untouched and gets their alert on the next run; the run's log line counts them as `left`. Texts
+are spaced to the sending number's allowed rate (`SMS_PER_SECOND`, default 3, a US toll-free number's limit),
+so texts are what caps a run: about 60 in 20 seconds. Emails and device notifications are not held to that.
+
+Only one run sends at a time (`src/lib/runlock.ts`). The scheduler calls again when a run takes longer than
+it waits, and two runs on the same list would both send to people neither had marked yet.
+
+## Ending reminder
+
+Someone who set an end date gets one reminder the day before it (or on the day, if they chose it that
+late), on every channel they have, saying their alerts are about to stop and their data will be deleted,
+and how to keep them. Choosing a different date makes them due a reminder again.
+
 ## Winding the site down
 
 Set the SSM parameter `/isitmycolor/SITE_SUNSET` to `true` and redeploy. Every page then shows a notice

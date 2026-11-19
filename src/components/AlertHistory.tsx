@@ -81,7 +81,7 @@ export function AlertHistory({ refreshKey = 0 }: { refreshKey?: number }) {
                 {/* two lines, so nothing has to squeeze on a phone: what and when, then how it went */}
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="min-w-0 truncate font-medium">
-                    {r.kind === "test" ? s.alertLog.test : r.kind === "notice" ? s.alertLog.notice : r.colors.length ? r.colors.map((k) => colorInfo(k)[lang === "es" ? "spanish" : "english"]).join(", ") : s.alertLog.notYours}
+                    {r.kind === "test" ? s.alertLog.test : r.kind === "notice" ? s.alertLog.notice : r.kind === "ending" ? s.alertLog.ending : r.colors.length ? r.colors.map((k) => colorInfo(k)[lang === "es" ? "spanish" : "english"]).join(", ") : s.alertLog.notYours}
                   </span>
                   <span className="shrink-0 text-xs tabular-nums text-fg-muted">{fmt(r.at)}</span>
                 </div>
