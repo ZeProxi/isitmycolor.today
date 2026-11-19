@@ -66,6 +66,7 @@ async function link(session: Session, contact: Contact, consentAt?: string): Pro
 
   if (other && me && other.phone !== me.phone) {
     await mergeAccounts(me, other);
+    log.info("alerts_combined", { who: who(me.phone), from: who(other.phone), sponsors: (other.supporters ?? []).length });
     await deleteAlerts(other.phone);
     await setContact(me.phone, contact, consentAt);
     return { id: me.phone, contacts, merged: true };

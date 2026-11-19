@@ -223,6 +223,11 @@ Drop the `who` filter and use `filter lvl = "error"` to see everything that brok
 - `alert_failed`, `alert_undelivered`: one channel failing for one person, and nothing reaching them at all.
   The failure reason is also kept on the person's alert record (`why`), which is never sent to the browser.
 - `notify_run`: one line per scheduled run with counts, so "did the 7:20 run happen?" has an answer.
+- `alert_created`, `alerts_ended` (with how: the Alerts page, an email link, or the end date), `emails_stopped`,
+  `alerts_combined`, `ending_reminder_sent`: the life of one person's alert.
+- `supporter_accepted`, `supporter_stopped`, `supporter_text_on` / `_off`, `supporter_link_refused`: what a
+  support person did. `who` on these is the person being supported; a support person's own address or
+  number is never written.
 
 Recommended set-up, done once in AWS (none of it is in this repo): a retention period on the log groups
 (this site uses 90 days, which the Privacy page states), a metric filter on `{ $.lvl = "error" }`, and an

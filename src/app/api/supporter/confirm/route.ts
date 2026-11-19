@@ -33,6 +33,10 @@ export async function POST(req: NextRequest) {
   const p = await resolveSupporterLink("confirm", q.get("p") ?? "", e, q.get("t") ?? "");
   // The page works out what to say: accepted, withdrawn, or not a valid link.
   const r = p ? await confirmSupporter(p, e) : null;
+  // `who` is the person being supported; the sponsor's own address is never written.
+  if (!p) log.warn("supporter_link_refused", { purpose: "confirm" });
+  else if (!r) log.warn("supporter_invite_gone", { who: who(p) });
+  else if (r.first) log.info("supporter_accepted", { who: who(p) });
   // The first time they accept, they get one email to keep, with the link to stop. Pressing the button
   // again sends nothing. If it can't be sent they are still accepted, and the page shows the same link.
   let mailed = false;
@@ -43,6 +47,8 @@ export async function POST(req: NextRequest) {
         const mail = supporterWelcomeEmail(r.sub.name || (r.sub.lang === "es" ? "Alguien" : "Someone"), isLang(r.sub.lang) ? r.sub.lang : "en", stop, env.smsPending ? undefined : await textUrl(r.sub, e));
         const out = await sendEmail(e, mail.subject, mail.text, mail.html, undefined, undefined, stop);
         mailed = !out.skipped;
+      } else {
+        log.warn("supporter_welcome_held", { who: who(r.sub.phone), why: "email allowance held back for alerts" });
       }
     } catch (err) {
       log.error("supporter_welcome_failed", { who: who(r.sub.phone), err: reason(err) });

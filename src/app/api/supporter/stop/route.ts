@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { removeSupporter, resolveSupporterLink } from "@/lib/supporters";
 import { ready } from "@/lib/config";
+import { log, who } from "@/lib/log";
 
 /**
  * /api/supporter/stop?p=<account>&e=<email>&t=<token>: the "stop these emails" link in
@@ -26,7 +27,11 @@ export async function POST(req: NextRequest) {
   const p = await resolveSupporterLink("stop", q.get("p") ?? "", e, q.get("t") ?? "");
   const form = await req.formData().catch(() => null);
   const oneClick = form?.get("List-Unsubscribe") === "One-Click";
-  if (!p) return oneClick ? new Response("invalid link", { status: 400 }) : toPage(req);
+  if (!p) {
+    log.warn("supporter_link_refused", { purpose: "stop", oneClick });
+    return oneClick ? new Response("invalid link", { status: 400 }) : toPage(req);
+  }
   await removeSupporter(p, e);
+  log.info("supporter_stopped", { who: who(p), oneClick });
   return oneClick ? new Response("ok", { headers: { "cache-control": "no-store" } }) : toPage(req, true);
 }

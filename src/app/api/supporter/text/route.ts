@@ -7,6 +7,7 @@ import { ready } from "@/lib/config";
 import { allow, clientIp } from "@/lib/ratelimit";
 import { setSupporterSms, resolveSupporterLink } from "@/lib/supporters";
 import { getLang } from "@/lib/lang-server";
+import { log, who } from "@/lib/log";
 
 /**
  * /api/supporter/text?p=<account>&e=<email>&t=<token>: where a support person who
@@ -37,13 +38,17 @@ export async function POST(req: NextRequest) {
   const p = await resolveSupporterLink("text", q.get("p") ?? "", e, q.get("t") ?? "");
   const sub = p ? await getSubscriber(p) : null;
   const me = sub?.supporters?.find((s) => s.email === e && s.status === "active");
-  if (!p || !sub || !me) return json({ state: "inactive" }, 410);
+  if (!p || !sub || !me) {
+    log.warn(p ? "supporter_not_active" : "supporter_link_refused", { purpose: "text", who: who(p) });
+    return json({ state: "inactive" }, 410);
+  }
 
   const form = await req.formData().catch(() => null);
   const step = String(form?.get("step") ?? "");
 
   if (step === "remove") {
     await setSupporterSms(p, e, undefined);
+    log.info("supporter_text_off", { who: who(p) });
     return json({ state: "removed" });
   }
   if (env.smsPending) return json({ state: "notyet" });
@@ -56,8 +61,12 @@ export async function POST(req: NextRequest) {
     if (form?.get("consent") !== "yes" || form?.get("unaffiliated") !== "yes") return json({ state: "ask", error: "tick_both" }, 400);
     // Codes cost money: cap per address, per invitation, and (inside sendCode) per number.
     const okRate = (await allow(`suptext:ip:${clientIp(req)}`, 6, 3600)) && (await allow(`suptext:${p}:${e}`, 5, 86400));
-    if (!okRate) return json({ state: "ask", error: "rate" }, 429);
+    if (!okRate) {
+      log.warn("code_not_sent", { why: "support person: too many tries", ch: "sms", who: who(p) });
+      return json({ state: "ask", error: "rate" }, 429);
+    }
     const r = await sendCode({ kind: "sms", value: phone }, await getLang(), new Date().toISOString());
+    if (!r.ok) log.warn("code_not_sent", { why: `support person: ${r.error}`, ch: "sms", who: who(p) });
     if (!r.ok) return json({ state: "ask", error: r.error === "opted_out" ? "opted_out" : r.error === "rate_limited" ? "code_rate" : "send_failed" }, 400);
     return json({ state: "code", phone: pretty(phone), devCode: r.devCode });
   }
@@ -66,8 +75,12 @@ export async function POST(req: NextRequest) {
     if (!(await allow(`suptext:verify:${clientIp(req)}`, 30, 3600))) return json({ state: "code", error: "rate" }, 429);
     const code = String(form?.get("code") ?? "").replace(/\D/g, "");
     const r = await verifyCode(phone, code);
-    if (!r.ok) return json({ state: "code", error: r.error }, 400);
+    if (!r.ok) {
+      log.warn("code_rejected", { why: `support person: ${r.error}`, ch: "sms", who: who(p) });
+      return json({ state: "code", error: r.error }, 400);
+    }
     if (!(await setSupporterSms(p, e, phone, r.consentAt))) return json({ state: "inactive" }, 410);
+    log.info("supporter_text_on", { who: who(p) });
     return json({ state: "on", phone: pretty(phone) });
   }
   return json({ state: "ask" });

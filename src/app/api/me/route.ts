@@ -6,6 +6,7 @@ import { isLang } from "@/lib/i18n";
 import { deleteAlerts } from "@/lib/alertlog";
 import { forHolder, supportingFor } from "@/lib/supporters";
 import { todayIsoMountain } from "@/lib/dates";
+import { log, who } from "@/lib/log";
 
 /** The signed-in person's alert. All three methods need the session cookie. */
 
@@ -68,6 +69,8 @@ export async function PUT(req: NextRequest) {
     contacts: session.contacts,
     smsConsentAt: session.smsConsentAt,
   });
+  // A new alert is worth a line: it is the answer to "I signed up, did it take?". Later edits are not logged.
+  if (!existing) log.info("alert_created", { who: who(session.id), sms: !!session.contacts.sms, email: !!session.contacts.email, colors: colors.length, mode: subscriber.prefs?.mode });
   return Response.json({ id: session.id, contacts: contactsOf(subscriber), subscriber: forHolder(subscriber) });
 }
 
@@ -76,6 +79,7 @@ export async function DELETE() {
   const session = await currentSession();
   if (!session) return unauthorized();
   await Promise.all([deleteSubscriber(session.id), deleteAlerts(session.id)]);
+  log.info("alerts_ended", { who: who(session.id), via: "alerts page" });
   return Response.json({ ok: true });
 }
 

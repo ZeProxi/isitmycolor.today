@@ -354,6 +354,7 @@ async function sendEndingNotice(sub: Subscriber, endDate: string, today: string,
   }
   if (![sms, email, push].some((v) => v === "sent" || v === "dry-run")) return; // nothing reached them: try again on the next run
   await markEndNotice(sub.phone, endDate);
+  log.info("ending_reminder_sent", { who: who(sub.phone), endDate, sms, email, push });
   sub.endNoticeFor = endDate;
   await logAlert(sub.phone, { date: today, kind: "ending", colors: [], sms, email, push });
 }
@@ -451,6 +452,7 @@ async function run(opts: { force?: boolean }, deadline: number): Promise<NotifyR
       try {
         await Promise.all([deleteSubscriber(sub.phone), deleteAlerts(sub.phone)]);
         result.expired.push(sub.phone);
+        log.info("alerts_ended", { who: who(sub.phone), via: "end date", endDate });
       } catch (e) {
         log.error("expire_failed", { who: who(sub.phone), err: reason(e) });
         result.errors.push({ phone: sub.phone, error: e instanceof Error ? e.message : String(e) });
