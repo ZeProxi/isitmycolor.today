@@ -461,6 +461,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
 
         <Supporters
           key={existing?.phone}
+          texts={!smsPending}
           initial={existing?.supporters ?? []}
           initialName={existing?.name ?? ""}
           busy={busy}
@@ -970,7 +971,7 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
             </p>
             <h2 className="text-xl font-bold sm:text-2xl">{c.supportStepTitle}</h2>
             <p className="mb-5 mt-2 text-sm text-fg-muted">{c.supportStepHelp}</p>
-            <Supporters key={existing?.phone} initial={existing?.supporters ?? []} initialName={existing?.name ?? ""} busy={busy} setStatus={setStatus} onGone={signedOut} onChange={setInvited} />
+            <Supporters key={existing?.phone} texts={!smsPending} initial={existing?.supporters ?? []} initialName={existing?.name ?? ""} busy={busy} setStatus={setStatus} onGone={signedOut} onChange={setInvited} />
             {statusLine}
             <div className="mt-6 flex items-center justify-between gap-3">
               <button type="button" className="link text-sm" disabled={busy} onClick={() => { setStatus({ kind: "idle" }); setStep("when"); }}>
@@ -1215,9 +1216,11 @@ function Tip({ text }: { text?: string }) {
  * "Support people": invite up to two others to get an email on your color days.
  * An invitation is all that's sent until they accept on the page it links to.
  */
-function Supporters({ initial, initialName, busy, setStatus, onGone, onChange }: { initial: SupportPerson[]; initialName: string; busy: boolean; setStatus: (s: Status) => void; onGone: () => void; onChange?: (count: number) => void }) {
+function Supporters({ initial, initialName, busy, setStatus, onGone, onChange, texts = false }: { initial: SupportPerson[]; initialName: string; busy: boolean; setStatus: (s: Status) => void; onGone: () => void; onChange?: (count: number) => void; /** texting is live, so support people are offered texts in their emails */ texts?: boolean }) {
   const { s } = useLang();
   const t = s.supporter;
+  // The part about texts is only said while it is true: the offer isn't in their emails until texting is switched on.
+  const help = texts ? `${t.help} ${t.helpTexts}` : t.help;
   const [people, setPeople] = useState<SupportPerson[]>(initial);
   const [adding, setAdding] = useState(false);
   const [email, setEmail] = useState("");
@@ -1268,9 +1271,9 @@ function Supporters({ initial, initialName, busy, setStatus, onGone, onChange }:
 
   // Its own group, apart from the holder's own channels, so it's clear these are other people.
   return (
-    <Group title={t.title} tip={t.help}>
+    <Group title={t.title} tip={help}>
       {/* a phone has no hover, so there the explanation stays in the card */}
-      <p className="px-4 py-3 text-sm text-fg-muted sm:hidden">{t.help}</p>
+      <p className="px-4 py-3 text-sm text-fg-muted sm:hidden">{help}</p>
       {people.map((p) => (
         <Line key={p.email} label={p.email} hint={p.status !== "active" ? t.invited : p.text ? t.activeText : t.active}>
           <span className="flex items-center gap-3">

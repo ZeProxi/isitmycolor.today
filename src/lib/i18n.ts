@@ -410,6 +410,7 @@ const en = {
   supporter: {
     title: "Sponsors and support people",
     help: "People you invite here get their own email on your color days. They have to accept first, and can stop any time.",
+    helpTexts: "If they want, they can also add their own mobile number to get a text on those days, using a link in the emails we send them. You never see their number.",
     none: "Nobody yet.",
     invited: "Invited, not accepted yet",
     active: "Gets an email on your color days",
@@ -1126,6 +1127,7 @@ const es: Dict = {
   supporter: {
     title: "Padrinos y personas de apoyo",
     help: "Las personas que invites aquí reciben su propio correo en los días de tu color. Primero tienen que aceptar, y pueden detenerlo cuando quieran.",
+    helpTexts: "Si quieren, también pueden agregar su propio número de celular para recibir un texto esos días, con un enlace en los correos que les enviamos. Tú nunca ves su número.",
     none: "Nadie todavía.",
     invited: "Invitado, aún no acepta",
     active: "Recibe un correo en los días de tu color",
