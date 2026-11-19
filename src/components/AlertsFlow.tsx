@@ -76,7 +76,15 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
   useEffect(() => {
     fetch("/api/me")
       .then(async (r) => {
-        if (r.status === 401) return setStep("channel");
+        if (r.status === 401) {
+          // /notify?via=text opens straight on the text sign-up step, so the consent boxes and the terms
+          // beside them can be seen at one address without clicking through (carrier reviewers ask for that).
+          if (new URLSearchParams(window.location.search).get("via") === "text") {
+            setWant("sms");
+            return setStep("phone");
+          }
+          return setStep("channel");
+        }
         const d = await r.json();
         setContacts(d.contacts ?? {});
         setSupporting(d.supporting ?? []);
