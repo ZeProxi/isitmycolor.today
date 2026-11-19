@@ -7,7 +7,7 @@ export function isLang(v: unknown): v is Lang {
 }
 
 const en = {
-  brand: "Wasatch UA Alerts",
+  brand: "Is it my color?",
   unofficial: "unofficial",
   nav: { menu: "Menu", closeMenu: "Close menu", contact: "Contact the developer", today: "Today", history: "History", alerts: "Alerts", official: "Official", resources: "Resources", about: "About", analytics: "Analytics", getTexts: "Get texts" },
   footer: {
@@ -614,7 +614,7 @@ const en = {
 export type Dict = typeof en;
 
 const es: Dict = {
-  brand: "Alertas UA Wasatch",
+  brand: "¿Es mi color?",
   unofficial: "no oficial",
   nav: { menu: "Menú", closeMenu: "Cerrar menú", contact: "Contactar al desarrollador", today: "Hoy", history: "Historial", alerts: "Alertas", official: "Oficial", resources: "Recursos", about: "Acerca de", analytics: "Analítica", getTexts: "Recibir textos" },
   footer: {

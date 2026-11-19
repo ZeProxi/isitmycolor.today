@@ -25,7 +25,7 @@ export const emailText = { fg: FG, muted: MUTED, faint: FAINT, line: LINE, panel
  * `footer` is extra HTML above the standing "not affiliated" line.
  */
 export function emailShell(opts: { lang: "en" | "es"; preheader: string; body: string; footer?: string }): string {
-  const name = opts.lang === "es" ? "Alertas UA Wasatch" : "Wasatch UA Alerts";
+  const name = opts.lang === "es" ? "¿Es mi color?" : "Is it my color?";
   const unofficial =
     opts.lang === "es"
       ? "Herramienta comunitaria no oficial. No está afiliada a Wasatch Behavioral Health. Confirma siempre en wasatch.org/colors o llamando al (385) 268-5002."
@@ -68,7 +68,7 @@ export function codeEmail(code: string, lang: "en" | "es"): { subject: string; t
   const s =
     lang === "es"
       ? {
-          subject: `${code} es tu código de Alertas UA Wasatch`,
+          subject: `${code} es tu código de isitmycolor.today`,
           title: "Tu código",
           lead: "Escríbelo en la página para continuar.",
           expires: "Vale por 10 minutos y solo se puede usar una vez.",
@@ -76,7 +76,7 @@ export function codeEmail(code: string, lang: "en" | "es"): { subject: string; t
           text: `${code} es tu código de isitmycolor.today. Vence en 10 minutos.`,
         }
       : {
-          subject: `${code} is your Wasatch UA Alerts code`,
+          subject: `${code} is your isitmycolor.today sign-in code`,
           title: "Your sign-in code",
           lead: "Enter it on the page to continue.",
           expires: "Good for 10 minutes, and it only works once.",

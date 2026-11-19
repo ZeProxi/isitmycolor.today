@@ -30,7 +30,7 @@ export default async function FlyerPage() {
       <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4 print:flex-row print:items-center print:gap-4">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/brand/logo.webp" alt="" width={119} height={72} className="h-[72px] w-[119px]" />
-        <h1 className="text-4xl font-bold leading-none tracking-tight sm:text-5xl print:text-5xl">Wasatch UA Alerts</h1>
+        <h1 className="text-4xl font-bold leading-none tracking-tight sm:text-5xl print:text-5xl">Is it my color?</h1>
       </div>
       <p className="mt-3 text-xl font-semibold text-black/70 sm:text-2xl print:text-2xl">Is it my color today? · ¿Es mi color hoy?</p>
 
