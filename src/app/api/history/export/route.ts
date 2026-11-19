@@ -1,8 +1,16 @@
 import type { NextRequest } from "next/server";
 import { listMonthSnapshots } from "@/lib/dynamo";
+import { isAdmin } from "@/lib/admin";
 
-/** GET /api/history/export?month=YYYY-MM -> that month's recorded days as CSV. */
+/**
+ * GET /api/history/export?month=YYYY-MM -> that month's recorded days as CSV.
+ *
+ * Owner only, like the Analytics pages. Anyone can look a day up on the History page, which is what the
+ * page is for. A ready-made spreadsheet of every day is the raw material for working out a pattern, and
+ * random testing shouldn't come with one. Everyone else gets "not found", the same as a page that isn't there.
+ */
 export async function GET(req: NextRequest) {
+  if (!(await isAdmin())) return new Response("Not found", { status: 404, headers: { "cache-control": "no-store" } });
   const month = req.nextUrl.searchParams.get("month") ?? "";
   if (!/^\d{4}-\d{2}$/.test(month)) return new Response("Bad month", { status: 400 });
   const days = await listMonthSnapshots(month);
@@ -30,7 +38,7 @@ export async function GET(req: NextRequest) {
     headers: {
       "content-type": "text/csv; charset=utf-8",
       "content-disposition": `attachment; filename="isitmycolor-${month}.csv"`,
-      "cache-control": "public, max-age=300",
+      "cache-control": "private, no-store", // owner-only: never held by the CDN for the next visitor
     },
   });
 }

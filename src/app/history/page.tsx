@@ -5,6 +5,7 @@ import { todayIsoMountain, monthOf } from "@/lib/dates";
 import { getLang } from "@/lib/lang-server";
 import { t } from "@/lib/i18n";
 import { myColors } from "@/lib/mine";
+import { isAdmin } from "@/lib/admin";
 import { HistoryCalendar } from "@/components/HistoryCalendar";
 import { NoticeHistory } from "@/components/NoticeHistory";
 import { PageSkeleton } from "@/components/PageSkeleton";
@@ -51,7 +52,8 @@ async function HistoryContent({ searchParams }: { searchParams: PageProps<"/hist
         </p>
       )}
       <HistoryCalendar month={month} days={days} today={today} lang={lang} mine={mine} firstMonth={firstMonth} />
-      {days.length > 0 && (
+      {/* the spreadsheet download is the owner's only: see the export route */}
+      {days.length > 0 && (await isAdmin().catch(() => false)) && (
         <a className="btn-ghost hidden text-sm sm:inline-flex" href={`/api/history/export?month=${month}`} download>
           {s.downloadCsv}
         </a>

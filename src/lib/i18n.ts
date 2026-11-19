@@ -216,7 +216,10 @@ const en = {
   agree: {
     title: "Before we turn alerts on",
     intro: "Read and tick the box to turn alerts on.",
-    text: "I understand that this website is not affiliated with Wasatch Behavioral Health or wasatch.org in any way. It is a community-built tool that can be wrong, late, or down. If I miss a test, go in on the wrong day, or get a wrong or missing text or email, that is on me, not on this website. I will still check the official page or call the hotline myself every day.",
+    updatedTitle: "The agreement has changed",
+    updatedIntro: "Your alerts are still on. Read the updated agreement and tick the box to get back to your settings.",
+    updatedButton: "Agree and continue",
+    text: "I understand that this website is not affiliated with Wasatch Behavioral Health or wasatch.org in any way. Wasatch Behavioral Health does not run this website and is not responsible for anything it sends or fails to send. It is a community-built tool that can be wrong, late, or down. If I miss a test, go in on the wrong day, or get a wrong or missing text or email, that is on me, not on this website. I will still check the official page or call the hotline myself every day.",
     checkbox: "I understand and agree",
     agreedOn: (d: string) => `Agreement accepted ${d}`,
     required: "Tick the box to continue.",
@@ -396,7 +399,7 @@ const en = {
     title: "Terms of use",
     updated: "Last updated November 19, 2026",
     sections: [
-      ["Not an official service", "isitmycolor.today is an independent, community-built, open-source tool. It is not affiliated with, endorsed by, or maintained by Wasatch Behavioral Health, wasatch.org, or any court, clinic, treatment program, or probation office."],
+      ["Not an official service", "isitmycolor.today is an independent, community-built, open-source tool. It is not affiliated with, endorsed by, or maintained by Wasatch Behavioral Health, wasatch.org, or any court, clinic, treatment program, or probation office. Wasatch Behavioral Health does not run this website and is not responsible for anything it sends or fails to send."],
       ["No guarantee", "The site re-reads a public web page and relays what it finds. It can be wrong, late, incomplete, or unavailable. Alerts may fail to send or arrive. The service is provided as-is, with no warranty of any kind."],
       ["You are responsible for checking", "You remain responsible for checking the official page at wasatch.org/colors or calling the hotline at (385) 268-5002 every day. A missing, late, or incorrect alert from this site is not an excuse and cannot be used to dispute a missed test or a color that was or was not called."],
       ["Alerts and consent", "By signing up you confirm the phone number is yours, you agree to receive automated text messages (and emails, if you add one) from this service, and you accept the agreement shown during sign-up. You can stop at any time by replying STOP or by removing your alert on the Alerts page."],
@@ -932,7 +935,10 @@ const es: Dict = {
   agree: {
     title: "Antes de activar las alertas",
     intro: "Lee y marca la casilla para activar las alertas.",
-    text: "Entiendo que este sitio web no está afiliado de ninguna manera a Wasatch Behavioral Health ni a wasatch.org. Es una herramienta comunitaria que puede fallar, atrasarse o estar caída. Si pierdo una prueba, voy el día equivocado, o recibo un texto o correo incorrecto o no lo recibo, la responsabilidad es mía, no de este sitio. Seguiré revisando la página oficial o llamando a la línea por mi cuenta todos los días.",
+    updatedTitle: "El acuerdo cambió",
+    updatedIntro: "Tus alertas siguen activas. Lee el acuerdo actualizado y marca la casilla para volver a tus ajustes.",
+    updatedButton: "Aceptar y continuar",
+    text: "Entiendo que este sitio web no está afiliado de ninguna manera a Wasatch Behavioral Health ni a wasatch.org. Wasatch Behavioral Health no opera este sitio web y no es responsable de nada de lo que envíe o deje de enviar. Es una herramienta comunitaria que puede fallar, atrasarse o estar caída. Si pierdo una prueba, voy el día equivocado, o recibo un texto o correo incorrecto o no lo recibo, la responsabilidad es mía, no de este sitio. Seguiré revisando la página oficial o llamando a la línea por mi cuenta todos los días.",
     checkbox: "Entiendo y acepto",
     agreedOn: (d: string) => `Acuerdo aceptado el ${d}`,
     required: "Marca la casilla para continuar.",
@@ -1109,7 +1115,7 @@ const es: Dict = {
     title: "Términos de uso",
     updated: "Última actualización: 19 de noviembre de 2026",
     sections: [
-      ["No es un servicio oficial", "isitmycolor.today es una herramienta independiente, comunitaria y de código abierto. No está afiliada, respaldada ni mantenida por Wasatch Behavioral Health, wasatch.org ni ningún tribunal, clínica, programa de tratamiento u oficina de libertad condicional."],
+      ["No es un servicio oficial", "isitmycolor.today es una herramienta independiente, comunitaria y de código abierto. No está afiliada, respaldada ni mantenida por Wasatch Behavioral Health, wasatch.org ni ningún tribunal, clínica, programa de tratamiento u oficina de libertad condicional. Wasatch Behavioral Health no opera este sitio web y no es responsable de nada de lo que envíe o deje de enviar."],
       ["Sin garantía", "El sitio vuelve a leer una página web pública y muestra lo que encuentra. Puede fallar, atrasarse, estar incompleto o no estar disponible. Las alertas pueden no enviarse o no llegar. El servicio se ofrece tal cual, sin garantía de ningún tipo."],
       ["Tú eres responsable de revisar", "Sigues siendo responsable de revisar la página oficial en wasatch.org/colors o de llamar a la línea al (385) 268-5002 todos los días. Una alerta faltante, tardía o incorrecta de este sitio no es excusa y no sirve para disputar una prueba perdida ni un color que se llamó o no se llamó."],
       ["Alertas y consentimiento", "Al registrarte confirmas que el número es tuyo, aceptas recibir mensajes de texto automatizados (y correos, si agregas uno) de este servicio, y aceptas el acuerdo que se muestra durante el registro. Puedes detenerlo en cualquier momento respondiendo STOP o eliminando tu alerta en la página Alertas."],

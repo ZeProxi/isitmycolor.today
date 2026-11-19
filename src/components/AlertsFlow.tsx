@@ -26,7 +26,7 @@ type Subscriber = {
 };
 type SupportPerson = { email: string; status: "invited" | "active"; text?: boolean };
 type Step = "loading" | "channel" | "signin" | "phone" | "email" | "code" | "colors" | "when" | "agree" | "support" | "test" | "done";
-const AGREEMENT_VERSION = 1;
+const AGREEMENT_VERSION = 2; // keep in step with src/lib/dynamo.ts
 const hasAgreed = (sub: Subscriber | null) => !!sub?.agreedAt && (sub.agreementVersion ?? 0) >= AGREEMENT_VERSION;
 type Status = { kind: "idle" | "busy" | "ok" | "err"; msg?: string };
 
@@ -917,9 +917,16 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
         )}
 
         {step === "agree" && (
-          <form onSubmit={(e) => { e.preventDefault(); if (agreed) void save("support", { agree: true }); }}>
-            <h2 className="text-xl font-bold sm:text-2xl">{s.agree.title}</h2>
-            <p className="mt-2 text-sm text-fg-muted">{s.agree.intro}</p>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              // Someone accepting a newer version of the agreement already has their alert set up: straight back
+              // to it. A new sign-up carries on to the optional steps.
+              if (agreed) void save(existing?.agreedAt ? "done" : "support", { agree: true });
+            }}
+          >
+            <h2 className="text-xl font-bold sm:text-2xl">{existing?.agreedAt ? s.agree.updatedTitle : s.agree.title}</h2>
+            <p className="mt-2 text-sm text-fg-muted">{existing?.agreedAt ? s.agree.updatedIntro : s.agree.intro}</p>
             <div className="mt-5 rounded-md border border-white/15 bg-black/25 p-4 text-sm leading-relaxed">
               {s.agree.text}
             </div>
@@ -935,11 +942,18 @@ export function AlertsFlow({ smsPending = false, smsNumber = "" }: { smsPending?
             </label>
             {statusLine}
             <div className="mt-6 flex items-center justify-between gap-3">
-              <button type="button" className="link text-sm" onClick={() => { setStatus({ kind: "idle" }); setStep("when"); }}>
-                {s.wizard.back}
-              </button>
+              {existing?.agreedAt ? (
+                // re-accepting: there is no sign-up step to go back to
+                <button type="button" className="link text-sm" disabled={busy} onClick={signOut}>
+                  {s.auth.signOut}
+                </button>
+              ) : (
+                <button type="button" className="link text-sm" onClick={() => { setStatus({ kind: "idle" }); setStep("when"); }}>
+                  {s.wizard.back}
+                </button>
+              )}
               <button type="submit" disabled={busy || !agreed} className="btn-primary">
-                {busy ? s.notify.saving : s.wizard.finish}
+                {busy ? s.notify.saving : existing?.agreedAt ? s.agree.updatedButton : s.wizard.finish}
               </button>
             </div>
           </form>
@@ -1141,11 +1155,14 @@ function Progress({ steps, current, label }: { steps: readonly string[]; current
 }
 
 /** A titled block of settings: a small heading, then rows separated by hairlines. */
-function Group({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
+function Group({ title, tip, action, children }: { title: string; /** a longer explanation behind a "?" beside the title, from tablet width up */ tip?: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section>
       <div className="mb-2 flex items-baseline justify-between gap-3 px-1">
-        <h2 className="font-sans text-xs font-semibold uppercase tracking-[0.08em] text-fg-faint">{title}</h2>
+        <span className="flex items-center gap-1.5">
+          <h2 className="font-sans text-xs font-semibold uppercase tracking-[0.08em] text-fg-faint">{title}</h2>
+          <Tip text={tip} />
+        </span>
         {action && <span className="text-xs">{action}</span>}
       </div>
       <div className="panel divide-y divide-line rounded-lg">{children}</div>
@@ -1251,8 +1268,9 @@ function Supporters({ initial, initialName, busy, setStatus, onGone, onChange }:
 
   // Its own group, apart from the holder's own channels, so it's clear these are other people.
   return (
-    <Group title={t.title}>
-      <p className="px-4 py-3 text-sm text-fg-muted">{t.help}</p>
+    <Group title={t.title} tip={t.help}>
+      {/* a phone has no hover, so there the explanation stays in the card */}
+      <p className="px-4 py-3 text-sm text-fg-muted sm:hidden">{t.help}</p>
       {people.map((p) => (
         <Line key={p.email} label={p.email} hint={p.status !== "active" ? t.invited : p.text ? t.activeText : t.active}>
           <span className="flex items-center gap-3">

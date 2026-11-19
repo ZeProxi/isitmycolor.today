@@ -49,7 +49,7 @@ export type AlertPrefs = {
 export const SMS_CONSENT_VERSION = 1;
 
 /** Bump when the agreement wording changes materially; people will be asked again. */
-export const AGREEMENT_VERSION = 1;
+export const AGREEMENT_VERSION = 2; // 2: adds that Wasatch Behavioral Health does not run the site and is not responsible for what it sends
 
 export const DEFAULT_PREFS: AlertPrefs = { mode: "match", earliestHour: 6 };
 
