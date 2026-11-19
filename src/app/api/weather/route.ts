@@ -1,3 +1,5 @@
+import { log, reason } from "@/lib/log";
+
 /**
  * GET /api/weather -> what the sky is doing in Utah Valley right now, for the mountains in the footer.
  *
@@ -44,7 +46,7 @@ export async function GET() {
     cached = { at: Date.now(), value };
     return Response.json(value, { headers });
   } catch (e) {
-    console.warn("weather unavailable", e);
+    log.warn("weather_unavailable", { err: reason(e) });
     // keep showing the last thing we knew if we have it; otherwise a clear sky. Try again in a minute.
     return Response.json(cached?.value ?? CLEAR, { headers: { "cache-control": "public, max-age=60" } });
   }

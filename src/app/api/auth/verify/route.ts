@@ -7,6 +7,7 @@ import { contactsOf, findAccountByContact, getSubscriber, mergeAccounts, setCont
 import { deleteAlerts } from "@/lib/alertlog";
 import { allow, clientIp } from "@/lib/ratelimit";
 import { forHolder, supportingFor } from "@/lib/supporters";
+import { log, who } from "@/lib/log";
 
 /**
  * POST { phone | email, code } -> proves the person holds that contact.
@@ -29,7 +30,10 @@ export async function POST(req: NextRequest) {
   if (!(await allow(`verify:ip:${clientIp(req)}`, 30, 3600))) return Response.json({ error: "too_many" }, { status: 429 });
 
   const r = await verifyCode(contact.value, code);
-  if (!r.ok) return Response.json({ error: r.error }, { status: 401 });
+  if (!r.ok) {
+    log.warn("code_rejected", { why: r.error, ch: contact.kind, who: who(contact.value) });
+    return Response.json({ error: r.error }, { status: 401 });
+  }
 
   const session = await currentSession();
   const consentAt = contact.kind === "sms" ? r.consentAt : undefined;

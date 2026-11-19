@@ -3,6 +3,7 @@ import { docClient, findAccountByContact } from "./dynamo";
 import { sendPush } from "./push";
 import { env } from "./env";
 import { ready } from "./config";
+import { log, reason } from "./log";
 import { sendSms } from "./sms";
 import { sendEmail } from "./email";
 import { nowIso, todayIsoMountain } from "./dates";
@@ -61,8 +62,8 @@ export async function alertOwner(problem: HealthProblem, detail: string): Promis
           ? `isitmycolor.today: the email provider says the sending allowance is used up (${detail}). Alert emails and sign-in codes will fail until it resets. Texts and device notifications are not affected.`
         : `isitmycolor.today check failed (${problem}): ${detail}. Subscribers were not texted.`;
   // Every channel the owner has, each on its own: one failing never stops the others.
-  if (phone) await sendSms(phone, msg).catch((e) => console.warn("[health] owner text failed:", e instanceof Error ? e.message : e));
-  if (email && problem !== "email_quota") await sendEmail(email, `isitmycolor.today: ${SUBJECT[problem]}`, msg).catch((e) => console.warn("[health] owner email failed:", e instanceof Error ? e.message : e));
+  if (phone) await sendSms(phone, msg).catch((e) => log.warn("owner_notice_failed", { ch: "sms", err: reason(e) }));
+  if (email && problem !== "email_quota") await sendEmail(email, `isitmycolor.today: ${SUBJECT[problem]}`, msg).catch((e) => log.warn("owner_notice_failed", { ch: "email", err: reason(e) }));
   // And a notification on the owner's own devices, if their account on this site has any turned on.
   // That reaches a phone even while texting isn't available.
   try {
@@ -71,7 +72,7 @@ export async function alertOwner(problem: HealthProblem, detail: string): Promis
       (phone ? await findAccountByContact({ kind: "sms", value: phone }) : null);
     if (account?.push?.length) await sendPush(account.phone, account.push, { title: `Site problem: ${SUBJECT[problem]}`, body: msg, url: "/", tag: `health-${problem}` });
   } catch (e) {
-    console.warn("[health] owner notification failed:", e instanceof Error ? e.message : e);
+    log.warn("owner_notice_failed", { ch: "push", err: reason(e) });
   }
   await docClient().send(new PutCommand({ TableName: env.historyTable, Item: { ...key, problem, detail, at: nowIso() } }));
   return "sent";

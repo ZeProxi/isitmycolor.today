@@ -5,6 +5,7 @@ import { sendEmail, EmailQuotaError } from "./email";
 import { todayIsoMountain, hourMountain, nowIso } from "./dates";
 import { env } from "./env";
 import { ready } from "./config";
+import { log, reason, who } from "./log";
 import { requestScreenshot } from "./screenshot";
 import { diagnose, alertOwner } from "./health";
 import { sendPush } from "./push";
@@ -209,14 +210,14 @@ async function notifySupporters(snapshot: ColorsSnapshot, matched: string[], sub
       const html = buildEmailHtml(snapshot, matched, { lang: sub.lang, prefs: undefined }, line, stop, { name, textUrl: offer });
       await sendEmail(person.email, s.supporter.emailSubject(name), `${line}\n\n${s.supporter.emailStop}: ${stop}`, html, undefined, undefined, stop);
     } catch (e) {
-      console.warn("supporter email failed", e instanceof Error ? e.message : e);
+      log.error("alert_failed", { kind: "supporter", ch: "email", who: who(sub.phone), err: reason(e) });
     }
     // A text only to a number they added and proved themselves, and never after a STOP.
     if (person.sms && !env.smsPending && !optedOut?.has(person.sms)) {
       try {
         await sendSms(person.sms, s.supporter.sms(name, colors.toUpperCase(), `${dayIn(snapshot, l)} ${snapshot.dateText}`));
       } catch (e) {
-        console.warn("supporter text failed", e instanceof Error ? e.message : e);
+        log.error("alert_failed", { kind: "supporter", ch: "sms", who: who(sub.phone), err: reason(e) });
       }
     }
   }
@@ -244,7 +245,10 @@ async function sendUnreadableNotices(today: string, hour: number): Promise<strin
     const address = sub.emailStopped ? undefined : emailOf(sub);
     let sms: ChannelStatus | undefined, email: ChannelStatus | undefined, push: ChannelStatus | undefined;
     if (number && !sub.smsStopped && !optedOut?.has(number)) {
-      sms = await sendSms(number, u.sms).then((r) => (r.dryRun ? "dry-run" : "sent") as ChannelStatus, () => "failed" as ChannelStatus);
+      sms = await sendSms(number, u.sms).then((r) => (r.dryRun ? "dry-run" : "sent") as ChannelStatus, (e) => {
+        log.error("alert_failed", { kind: "notice", ch: "sms", who: who(sub.phone), date: today, err: reason(e) });
+        return "failed" as ChannelStatus;
+      });
     }
     if (address) {
       const unsub = unsubscribeUrl(sub.phone);
@@ -255,7 +259,10 @@ async function sendUnreadableNotices(today: string, hour: number): Promise<strin
       const html = emailShell({ lang: l, preheader: u.body, body, footer: `${esc(t(l).emailWhy)} <a href="${esc(unsub)}" style="color:${muted}">${esc(t(l).emailUnsubscribe)}</a>` });
       email = await sendEmail(address, u.title, `${u.title}. ${u.body}\n\n${u.more}\n\n${t(l).emailUnsubscribe}: ${unsub}`, html, undefined, undefined, unsub).then(
         (r) => (r.skipped ? "skipped" : r.dryRun ? "dry-run" : "sent") as ChannelStatus,
-        () => "failed" as ChannelStatus,
+        (e) => {
+          log.error("alert_failed", { kind: "notice", ch: "email", who: who(sub.phone), date: today, err: reason(e) });
+          return "failed" as ChannelStatus;
+        },
       );
     }
     if (sub.push?.length) {
@@ -284,7 +291,7 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
     await alertOwner("fetch_failed", detail);
-    await sendUnreadableNotices(todayIsoMountain(), hour).catch((err) => console.warn("unreadable notices failed", err));
+    await sendUnreadableNotices(todayIsoMountain(), hour).catch((err) => log.error("unreadable_notices_failed", { err: reason(err) }));
     throw e;
   }
   const problem = diagnose(snapshot, hour);
@@ -329,7 +336,7 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
   // and once the morning is under way people are told, so silence isn't taken for "not my color".
   if ((!pageIsForToday || snapshot.colors.length === 0) && !opts.force) {
     result.unreadableNotices = await sendUnreadableNotices(today, hour).catch((err) => {
-      console.warn("unreadable notices failed", err);
+      log.error("unreadable_notices_failed", { err: reason(err) });
       return [];
     });
     return result;
@@ -359,6 +366,7 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
         await Promise.all([deleteSubscriber(sub.phone), deleteAlerts(sub.phone)]);
         result.expired.push(sub.phone);
       } catch (e) {
+        log.error("expire_failed", { who: who(sub.phone), err: reason(e) });
         result.errors.push({ phone: sub.phone, error: e instanceof Error ? e.message : String(e) });
       }
       continue;
@@ -396,11 +404,15 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
       const message = buildMessage(snapshot, matched, sub);
       let r: { messageId?: string; dryRun: boolean } = { dryRun: false };
       let smsError: string | undefined;
+      const kind = matched.length ? "match" : "daily";
+      const why: string[] = []; // what went wrong on each channel, kept with the alert record
       if (number && !smsOff) {
         try {
           r = await sendSms(number, message);
         } catch (e) {
           smsError = e instanceof Error ? e.message : String(e);
+          why.push(`sms: ${reason(e)}`);
+          log.error("alert_failed", { kind, ch: "sms", who: who(sub.phone), date: snapshot.date, err: reason(e) });
         }
       }
       let email: string | undefined;
@@ -413,6 +425,8 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
           email = e.skipped ? `skipped: ${e.skipped}` : e.dryRun ? "dry-run" : "sent";
         } catch (e) {
           email = `failed: ${e instanceof Error ? e.message : String(e)}`;
+          why.push(`email: ${reason(e)}`);
+          log.error("alert_failed", { kind, ch: "email", who: who(sub.phone), date: snapshot.date, err: reason(e) });
           if (e instanceof EmailQuotaError) await alertOwner("email_quota", e.message).catch(() => {});
         }
       }
@@ -430,6 +444,7 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
         sms: !number ? undefined : smsOff ? "stopped" : smsError ? "failed" : r.dryRun ? "dry-run" : "sent",
         email: st(email),
         push: st(push),
+        why: why.join("; ") || undefined,
       });
       // Something was tried and nothing got through: leave them un-notified so the next run tries again.
       const smsWent = !!number && !smsOff && !smsError;
@@ -442,12 +457,14 @@ export async function runNotify(opts: { force?: boolean } = {}): Promise<NotifyR
       if (matched.length) await notifySupporters(snapshot, matched, sub, optedOut);
       result.notified.push({ phone: sub.phone, colors: matched, kind: matched.length ? "match" : "daily", email, smsError, push, ...r });
     } catch (e) {
+      // Nothing reached them (or the bookkeeping after a send broke). The next run tries again.
+      log.error("alert_undelivered", { who: who(sub.phone), date: snapshot.date, err: reason(e) });
       result.errors.push({ phone: sub.phone, error: e instanceof Error ? e.message : String(e) });
     }
   }
   if (partial && !opts.force) {
     result.unreadableNotices = await sendUnreadableNotices(today, hour).catch((err) => {
-      console.warn("unreadable notices failed", err);
+      log.error("unreadable_notices_failed", { err: reason(err) });
       return [];
     });
   }

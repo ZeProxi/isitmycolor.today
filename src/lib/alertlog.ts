@@ -3,6 +3,7 @@ import { docClient } from "./dynamo";
 import { env } from "./env";
 import { ready } from "./config";
 import { nowIso } from "./dates";
+import { log, reason, who } from "./log";
 
 /**
  * Per-person record of every alert we tried to send, so a signed-in subscriber
@@ -19,6 +20,8 @@ export type AlertEntry = {
   sms?: ChannelStatus;
   email?: ChannelStatus;
   push?: ChannelStatus;
+  /** Why a channel failed, for the owner looking into a report. Stored, never sent to the browser. */
+  why?: string;
 };
 
 const KEEP_SEC = 365 * 24 * 3600;
@@ -34,7 +37,7 @@ export async function logAlert(phone: string, entry: Omit<AlertEntry, "at">): Pr
       }),
     );
   } catch (e) {
-    console.warn("alert log failed", e instanceof Error ? e.message : e); // never let bookkeeping block a send
+    log.error("alert_log_failed", { who: who(phone), err: reason(e) }); // never let bookkeeping block a send
   }
 }
 

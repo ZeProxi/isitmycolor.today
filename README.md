@@ -195,6 +195,39 @@ The daily job checks its own result. If the hotline page can't be fetched, parse
 shows yesterday's date after 7 am Mountain, the owner gets one text and one email per problem per day
 (`OWNER_PHONE` and `OWNER_EMAIL` in SSM). Subscribers are never contacted by this. See `src/lib/health.ts`.
 
+## Logs
+
+Server code logs through `src/lib/log.ts`: one line of JSON per event, with `lvl` (`error`, `warn`, `info`),
+`evt`, and a few fields. On Amplify these land in the app's CloudWatch log group (`/aws/amplify/<app id>`).
+
+No phone number or email address is written. A person appears only as `who`, a short one-way tag, and error
+text has any contact blanked. To find one person's lines, get their tag and search for it:
+
+```bash
+npx tsx scripts/log-tag.ts someone@example.com    # prints e.g. u:1a2b3c4d
+```
+
+Then in CloudWatch Logs Insights, on the app's log group:
+
+```
+fields @timestamp, lvl, evt, ch, why, err
+| filter who = "u:1a2b3c4d"
+| sort @timestamp desc
+```
+
+Drop the `who` filter and use `filter lvl = "error"` to see everything that broke. What gets logged:
+
+- `unhandled`: any error a page or route didn't catch, with the path (never its query string).
+- `code_send_failed`, `code_not_sent`, `code_rejected`: sign-in codes that failed, were refused (rate limit,
+  allowance), or were typed wrong or too late.
+- `alert_failed`, `alert_undelivered`: one channel failing for one person, and nothing reaching them at all.
+  The failure reason is also kept on the person's alert record (`why`), which is never sent to the browser.
+- `notify_run`: one line per scheduled run with counts, so "did the 7:20 run happen?" has an answer.
+
+Recommended set-up, done once in AWS (none of it is in this repo): a retention period on the log groups
+(this site uses 90 days, which the Privacy page states), a metric filter on `{ $.lvl = "error" }`, and an
+alarm on that metric that emails the owner.
+
 ## Winding the site down
 
 Set the SSM parameter `/isitmycolor/SITE_SUNSET` to `true` and redeploy. Every page then shows a notice

@@ -3,6 +3,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { LambdaClient, InvokeCommand } from "@aws-sdk/client-lambda";
 import { env, awsCredentials } from "./env";
 import { ready } from "./config";
+import { log, reason } from "./log";
 
 let _s3: S3Client | null = null;
 function s3() {
@@ -47,7 +48,7 @@ export async function requestScreenshot(): Promise<boolean> {
     await lambda.send(new InvokeCommand({ FunctionName: env.screenshotFunction, InvocationType: "Event", Payload: Buffer.from("{}") }));
     return true;
   } catch (e) {
-    console.error("[screenshot] invoke failed:", e instanceof Error ? e.message : e);
+    log.error("screenshot_failed", { err: reason(e) });
     return false;
   }
 }

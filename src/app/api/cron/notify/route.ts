@@ -4,6 +4,7 @@ import { runNotify } from "@/lib/notify";
 import { env } from "@/lib/env";
 import { ready } from "@/lib/config";
 import { clientIp } from "@/lib/ratelimit";
+import { log, reason } from "@/lib/log";
 
 /**
  * POST /api/cron/notify   (also GET)
@@ -39,10 +40,25 @@ async function handle(req: NextRequest) {
   }
 
   const force = req.nextUrl.searchParams.get("force") === "1";
+  const started = Date.now();
   try {
     const result = await runNotify({ force });
+    // One line per run: enough to answer "did the 7:20 run happen, and what did it do?"
+    log.info("notify_run", {
+      date: result.snapshot.date ?? null,
+      colors: result.snapshot.colors.length,
+      forToday: result.pageIsForToday,
+      inWindow: result.inNotifyWindow,
+      checked: result.subscribersChecked,
+      notified: result.notified.length,
+      skipped: result.skipped.length,
+      notices: result.unreadableNotices.length,
+      errors: result.errors.length,
+      ms: Date.now() - started,
+    });
     return Response.json(result);
   } catch (e) {
+    log.error("notify_run_failed", { err: reason(e), ms: Date.now() - started });
     return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
 }

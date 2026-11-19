@@ -1,6 +1,7 @@
 import { SNSClient, PublishCommand, CheckIfPhoneNumberIsOptedOutCommand, ListPhoneNumbersOptedOutCommand } from "@aws-sdk/client-sns";
 import { env, awsCredentials } from "./env";
 import { ready } from "./config";
+import { log, reason } from "./log";
 
 let _sns: SNSClient | null = null;
 function sns() {
@@ -53,7 +54,7 @@ export async function isOptedOut(phone: string): Promise<boolean> {
     const r = await sns().send(new CheckIfPhoneNumberIsOptedOutCommand({ phoneNumber: phone }));
     return !!r.isOptedOut;
   } catch (e) {
-    console.warn("opt-out check failed", e instanceof Error ? e.message : e);
+    log.warn("optout_check_failed", { err: reason(e) });
     return false; // SNS still enforces the opt-out itself; we just won't know this run
   }
 }
@@ -71,7 +72,7 @@ export async function listOptedOut(): Promise<Set<string> | null> {
     } while (nextToken);
     return out;
   } catch (e) {
-    console.warn("opt-out list failed", e instanceof Error ? e.message : e);
+    log.warn("optout_list_failed", { err: reason(e) });
     return null;
   }
 }

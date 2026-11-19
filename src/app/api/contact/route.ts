@@ -3,6 +3,7 @@ import { sendEmail, isEmail } from "@/lib/email";
 import { allow, allowNonAlertEmail, clientIp, today } from "@/lib/ratelimit";
 import { env } from "@/lib/env";
 import { ready } from "@/lib/config";
+import { log, reason } from "@/lib/log";
 
 /**
  * POST { message, from, name?, website? } -> emails the site owner, reply-to the sender.
@@ -44,7 +45,8 @@ export async function POST(req: NextRequest) {
     const r = await sendEmail(to, `[isitmycolor.today contact] ${name || from}`, text, undefined, from, env.contactFrom);
     if (r.skipped) return Response.json({ error: "contact_disabled" }, { status: 404 });
     return Response.json({ ok: true });
-  } catch {
+  } catch (e) {
+    log.error("contact_failed", { err: reason(e) });
     return Response.json({ error: "send_failed" }, { status: 502 });
   }
 }

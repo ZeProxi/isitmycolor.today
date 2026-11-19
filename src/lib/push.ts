@@ -5,6 +5,7 @@ import { docClient, getSubscriber } from "./dynamo";
 import { env } from "./env";
 import { ready } from "./config";
 import { nowIso } from "./dates";
+import { log, reason, who } from "./log";
 
 /**
  * Web push: free notifications to phones and desktops that have allowed them
@@ -80,7 +81,10 @@ export async function sendPush(
     console.log(`[PUSH_DRY_RUN] to ${phone} (${subs.length} devices): ${payload.title} - ${payload.body}`);
     return { sent: subs.length, failed: 0, dryRun: true };
   }
-  if (!configure()) return { sent: 0, failed: subs.length, dryRun: false };
+  if (!configure()) {
+    log.error("push_not_configured", { who: who(phone) });
+    return { sent: 0, failed: subs.length, dryRun: false };
+  }
   let sent = 0;
   const dead: string[] = [];
   for (const s of subs) {
@@ -93,7 +97,9 @@ export async function sendPush(
       sent++;
     } catch (e) {
       const code = (e as { statusCode?: number }).statusCode;
+      // 404/410 is a device that turned notifications off: expected, and cleaned up below.
       if (code === 404 || code === 410) dead.push(s.endpoint);
+      else log.error("push_failed", { who: who(phone), status: code, err: reason(e) });
     }
   }
   if (dead.length) await savePush(phone, subs.filter((s) => !dead.includes(s.endpoint)));

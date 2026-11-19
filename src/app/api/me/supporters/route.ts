@@ -7,6 +7,7 @@ import { confirmUrl, removeSupporter, saveSupporters, supportersForHolder, MAX_S
 import { allow, allowNonAlertEmail } from "@/lib/ratelimit";
 import { isLang } from "@/lib/i18n";
 import { nowIso } from "@/lib/dates";
+import { log, reason, who } from "@/lib/log";
 
 /**
  * The signed-in person's support people.
@@ -49,6 +50,7 @@ export async function POST(req: NextRequest) {
       const r = await sendEmail(email, mail.subject, mail.text, mail.html);
       if (r.skipped) throw new Error(r.skipped);
     } catch (e) {
+      log.error("invite_failed", { who: who(session.id), err: reason(e) });
       if (!existing) await removeSupporter(session.id, email); // don't leave an invitation nobody received
       if (e instanceof EmailQuotaError) return Response.json({ error: "quota" }, { status: 503 });
       return Response.json({ error: "send_failed" }, { status: 502 });

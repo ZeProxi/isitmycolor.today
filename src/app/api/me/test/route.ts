@@ -9,6 +9,7 @@ import { logAlert } from "@/lib/alertlog";
 import { unsubscribeUrl } from "@/lib/unsubscribe";
 import { t, isLang } from "@/lib/i18n";
 import { matchedColors } from "@/lib/colors";
+import { log, reason, who } from "@/lib/log";
 
 const MAX_PER_DAY = 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -40,6 +41,7 @@ export async function POST() {
 
   await recordTestSend(phone, [...recent, now]);
 
+  const why: string[] = []; // what went wrong on each channel, kept with the alert record
   let sms: "sent" | "dry-run" | "failed" | "stopped" | undefined;
   let smsError: string | undefined;
   const number = smsOf(sub);
@@ -55,6 +57,8 @@ export async function POST() {
       } catch (e) {
         sms = "failed";
         smsError = e instanceof Error ? e.message : String(e);
+        why.push(`sms: ${reason(e)}`);
+        log.error("alert_failed", { kind: "test", ch: "sms", who: who(phone), err: reason(e) });
       }
     }
   }
@@ -67,8 +71,10 @@ export async function POST() {
       const unsub = unsubscribeUrl(phone);
       const e = await sendEmail(address, t(lang).emailSubject[matched.length ? "match" : "noMatch"], `${forEmail(message)}\n\n${t(lang).emailUnsubscribe}: ${unsub}`, buildEmailHtml(snapshot, matched, sub, message, unsub), undefined, undefined, unsub);
       email = e.skipped ? "skipped" : e.dryRun ? "dry-run" : "sent";
-    } catch {
+    } catch (e) {
       email = "failed";
+      why.push(`email: ${reason(e)}`);
+      log.error("alert_failed", { kind: "test", ch: "email", who: who(phone), err: reason(e) });
     }
   }
 
@@ -78,7 +84,7 @@ export async function POST() {
     push = pr.dryRun ? "dry-run" : pr.sent > 0 ? "sent" : "failed";
   }
 
-  await logAlert(phone, { date: snapshot.date ?? "", kind: "test", colors: matched, sms, email, push: push === "none" ? undefined : push });
+  await logAlert(phone, { date: snapshot.date ?? "", kind: "test", colors: matched, sms, email, push: push === "none" ? undefined : push, why: why.join("; ") || undefined });
 
   const went = (v?: string) => v === "sent" || v === "dry-run";
   if (!went(sms) && !went(email) && !went(push)) {

@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { getDayRecord, listMonthSnapshots, listRecentSnapshots } from "@/lib/dynamo";
+import { log, reason } from "@/lib/log";
 
 /**
  * GET /api/history?month=YYYY-MM   -> every recorded day in that month
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
     }
     return Response.json({ days: await listRecentSnapshots(30) }, { headers: { "cache-control": "public, max-age=60, s-maxage=300" } });
   } catch (e) {
-    console.error("history failed", e);
+    log.error("history_failed", { err: reason(e) });
     return Response.json({ error: "Couldn't load history" }, { status: 500 });
   }
 }

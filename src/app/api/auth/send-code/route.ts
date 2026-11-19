@@ -5,6 +5,7 @@ import { findAccountByContact } from "@/lib/dynamo";
 import { allow, allowNonAlertEmail, clientIp, today } from "@/lib/ratelimit";
 import { getLang } from "@/lib/lang-server";
 import { ready } from "@/lib/config";
+import { log, who } from "@/lib/log";
 
 /** POST { phone } or { email } -> sends a 6-digit code there (text or email) */
 export async function POST(req: NextRequest) {
@@ -28,21 +29,32 @@ export async function POST(req: NextRequest) {
 
   // Codes cost money (texts) or daily quota (email): cap per address and per day site-wide.
   const ip = clientIp(req);
-  if (!(await allow(`codes:ip:${ip}`, 10, 3600))) return Response.json({ error: "rate_limited" }, { status: 429 });
-  if (!(await allow(`codes:day:${today()}`, 300, 86400))) return Response.json({ error: "rate_limited" }, { status: 429 });
+  // Every refusal leaves a line, so "I never got a code" can be answered.
+  const refused = (why: string) => log.warn("code_not_sent", { why, ch: contact.kind, who: who(contact.value) });
+  if (!(await allow(`codes:ip:${ip}`, 10, 3600))) {
+    refused("too many from one address");
+    return Response.json({ error: "rate_limited" }, { status: 429 });
+  }
+  if (!(await allow(`codes:day:${today()}`, 300, 86400))) {
+    refused("site-wide daily cap");
+    return Response.json({ error: "rate_limited" }, { status: 429 });
+  }
 
   // Emailed codes share a daily allowance with the alerts themselves. Codes stop first, so a burst of
   // sign-ups can't use up what tomorrow morning's alerts need.
   if (contact.kind === "email" && !(await allowNonAlertEmail())) {
+    refused("email allowance held back for alerts");
     return Response.json({ error: "quota" }, { status: 503 });
   }
 
   if (returning && !(await findAccountByContact(contact))) {
     // No alert under this number: nothing is sent. The answer is the same either way, so this can't be
     // used to find out whether someone's number is signed up.
+    refused("sign-in for a number with no alert");
     return Response.json({ ok: true, kind: contact.kind, sentTo: contact.value });
   }
   const r = await sendCode(contact, await getLang(), contact.kind === "sms" && !returning ? new Date().toISOString() : undefined);
+  if (!r.ok) refused(r.error);
   if (!r.ok) return Response.json({ error: r.error }, { status: r.error === "rate_limited" ? 429 : r.error === "opted_out" ? 409 : r.error === "quota" ? 503 : 502 });
   return Response.json({ ok: true, kind: contact.kind, sentTo: contact.value, devCode: r.devCode });
 }

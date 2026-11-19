@@ -1,4 +1,5 @@
 import { loadSsmIntoEnv } from "./ssm";
+import { log, reason } from "./log";
 
 /**
  * Makes sure config from SSM Parameter Store has been loaded (when SSM_PREFIX
@@ -24,7 +25,7 @@ export function ready(): Promise<void> {
       },
       (err) => {
         pending = null;
-        console.error(`[config] failed to load SSM parameters from ${prefix}:`, err instanceof Error ? err.message : err);
+        log.error("config_load_failed", { err: reason(err) });
       },
     );
   }

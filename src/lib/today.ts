@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { fetchColors, type ColorsSnapshot } from "./scrape";
 import { todayIsoMountain } from "./dates";
+import { log, reason } from "./log";
 
 export type TodayResult = Omit<ColorsSnapshot, "rawHtml"> | { error: string };
 
@@ -30,7 +31,7 @@ async function load(): Promise<TodayResult> {
     return snapshot;
   } catch (e) {
     const error = e instanceof Error ? e.message : "Could not reach wasatch.org";
-    console.warn(`[colors] fetch failed: ${error}`);
+    log.warn("colors_fetch_failed", { err: reason(e) });
     return { error };
   }
 }

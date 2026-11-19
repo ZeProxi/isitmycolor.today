@@ -8,6 +8,7 @@ import { sendEmail, EmailQuotaError } from "./email";
 import { alertOwner } from "./health";
 import { codeEmail } from "./email-layout";
 import { ready } from "./config";
+import { log, reason, who } from "./log";
 import type { Contact, Contacts } from "./contact";
 
 /**
@@ -69,9 +70,13 @@ export async function sendCode(c: Contact, lang: "en" | "es" = "en", consentAt?:
     } else {
       const mail = codeEmail(code, lang);
       const r = await sendEmail(c.value, mail.subject, mail.text, mail.html);
-      if (r.skipped) return { ok: false, error: "email_failed" };
+      if (r.skipped) {
+        log.error("code_send_failed", { ch: "email", who: who(c.value), err: r.skipped });
+        return { ok: false, error: "email_failed" };
+      }
     }
   } catch (e) {
+    log.error("code_send_failed", { ch: c.kind, who: who(c.value), err: reason(e) });
     if (e instanceof EmailQuotaError) {
       await alertOwner("email_quota", e.message).catch(() => {});
       return { ok: false, error: "quota" };
