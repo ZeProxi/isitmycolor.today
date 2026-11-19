@@ -22,6 +22,8 @@ export type AlertEntry = {
   push?: ChannelStatus;
   /** Why a channel failed, for the owner looking into a report. Stored, never sent to the browser. */
   why?: string;
+  /** The colors on their list when this was sent. Stored, never sent to the browser. */
+  mine?: string[];
 };
 
 const KEEP_SEC = 365 * 24 * 3600;
@@ -39,6 +41,41 @@ export async function logAlert(phone: string, entry: Omit<AlertEntry, "at">): Pr
   } catch (e) {
     log.error("alert_log_failed", { who: who(phone), err: reason(e) }); // never let bookkeeping block a send
   }
+}
+
+/**
+ * A day on which someone was sent nothing because none of their colors was listed. Alerts leave a record;
+ * without this, a quiet day leaves none, and "you never alerted me" can't be told apart from "it wasn't
+ * your color". One per person per day, written the first time that day's page is read for them: their
+ * list at that moment, what the page listed, and when. Kept a year under its own key ("DAYLOG#<id>"), so
+ * it never appears in the alert history the person sees, and deleted with the rest when they stop.
+ */
+export type QuietDay = { date: string; at: string; why: "not_listed" | "partial_reading"; mine: string[]; called: string[] };
+
+export async function logQuietDay(phone: string, day: Omit<QuietDay, "at">): Promise<void> {
+  await ready();
+  await docClient().send(
+    new PutCommand({
+      TableName: env.historyTable,
+      Item: { pk: `DAYLOG#${phone}`, sk: day.date, ...day, at: nowIso(), ttl: Math.floor(Date.now() / 1000) + KEEP_SEC },
+    }),
+  );
+}
+
+export async function getQuietDay(phone: string, date: string): Promise<QuietDay | null> {
+  await ready();
+  const r = await docClient().send(new QueryCommand({ TableName: env.historyTable, KeyConditionExpression: "pk = :pk AND sk = :d", ExpressionAttributeValues: { ":pk": `DAYLOG#${phone}`, ":d": date } }));
+  const i = r.Items?.[0];
+  return i ? { date: i.date, at: i.at, why: i.why, mine: i.mine ?? [], called: i.called ?? [] } : null;
+}
+
+/** Every stored record of what was sent to someone on one day, as stored (including the fields the browser never gets). */
+export async function alertsOn(phone: string, date: string): Promise<(AlertEntry & { why?: string; mine?: string[] })[]> {
+  await ready();
+  const r = await docClient().send(
+    new QueryCommand({ TableName: env.historyTable, KeyConditionExpression: "pk = :pk", FilterExpression: "#d = :d", ExpressionAttributeNames: { "#d": "date" }, ExpressionAttributeValues: { ":pk": `ALERT#${phone}`, ":d": date } }),
+  );
+  return (r.Items ?? []) as (AlertEntry & { why?: string; mine?: string[] })[];
 }
 
 /**
@@ -72,16 +109,20 @@ function toEntry(i: Record<string, unknown>): AlertEntry {
   };
 }
 
-/** Forget someone's alert history (called when they stop alerts). */
+/** Forget someone's alert history and their quiet-day records (called when they stop alerts). */
 export async function deleteAlerts(phone: string): Promise<void> {
   await ready();
+  for (const pk of [`ALERT#${phone}`, `DAYLOG#${phone}`]) await deleteAll(pk);
+}
+
+async function deleteAll(pk: string): Promise<void> {
   let ExclusiveStartKey: Record<string, unknown> | undefined;
   do {
     const r = await docClient().send(
       new QueryCommand({
         TableName: env.historyTable,
         KeyConditionExpression: "pk = :pk",
-        ExpressionAttributeValues: { ":pk": `ALERT#${phone}` },
+        ExpressionAttributeValues: { ":pk": pk },
         ProjectionExpression: "pk, sk",
         ExclusiveStartKey,
       }),

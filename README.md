@@ -233,6 +233,25 @@ Recommended set-up, done once in AWS (none of it is in this repo): a retention p
 (this site uses 90 days, which the Privacy page states), a metric filter on `{ $.lvl = "error" }`, and an
 alarm on that metric that emails the owner.
 
+## Answering "you never alerted me"
+
+Three things are kept so a complaint about a missed alert can be checked against what happened:
+
+- every alert attempted for a person, channel by channel, with their color list at that moment and the
+  reason for any failure;
+- every change to their colors, with the time;
+- for each day nothing was sent because none of their colors was listed: their list and the page's at the
+  moment that was decided.
+
+All of it is kept a year at most and deleted when the person stops their alert. To read it:
+
+```bash
+npx tsx scripts/lookup.ts someone@example.com 2026-11-19
+```
+
+That prints their colors and changes, what the hotline page listed that day and when it was read, and what
+was done for them. It prints one person's details to your screen, so mind where the output goes.
+
 ## Busy mornings
 
 One alert run handles several people at once (`NOTIFY_PARALLEL`, default 8) and stops starting new sends

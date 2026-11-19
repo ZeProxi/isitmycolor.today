@@ -80,6 +80,14 @@ export type Subscriber = {
   lastNotifiedKind?: "match" | "daily";
   /** YYYY-MM-DD of the last day we told them we couldn't read the hotline page. */
   lastProblemDate?: string;
+  /**
+   * Every change to their colors, oldest first: what the list became and when. Kept so a question like
+   * "was green on my list that morning?" has an answer after the list has changed. The first entry of an
+   * alert that existed before this was recorded is marked `was`: those were already their colors by then.
+   */
+  colorLog?: { at: string; colors: string[]; was?: boolean }[];
+  /** YYYY-MM-DD of the last day a "nothing sent, your color wasn't listed" record was written (see alertlog.ts). */
+  lastQuietDate?: string;
   /** The end date they have already been reminded about. Choosing a different date makes them due a reminder again. */
   endNoticeFor?: string;
   /** "en" | "es": language for the text message */
@@ -165,6 +173,7 @@ export async function upsertSubscriber(input: {
       createdAt: now,
     }),
     colors: input.colors,
+    colorLog: colorLogAfter(existing, input.colors, now),
     lang: input.lang ?? existing?.lang,
     prefs: input.prefs ?? existing?.prefs ?? DEFAULT_PREFS,
     agreedAt: input.agree ? now : existing?.agreedAt,
@@ -248,7 +257,7 @@ export async function mergeAccounts(into: Subscriber, from: Subscriber): Promise
 export function mergedAccount(into: Subscriber, from: Subscriber, now: string): Subscriber {
   const colors = Array.from(new Set([...into.colors, ...from.colors])).slice(0, 10);
   const push = [...(into.push ?? []), ...(from.push ?? []).filter((p) => !(into.push ?? []).some((q) => q.endpoint === p.endpoint))].slice(-5);
-  const merged: Subscriber = { ...into, colors, push: push.length ? push : undefined, updatedAt: now };
+  const merged: Subscriber = { ...into, colors, colorLog: colorLogAfter(into, colors, now), push: push.length ? push : undefined, updatedAt: now };
   if (!smsOf(into) && smsOf(from)) merged.sms = smsOf(from);
   if (!emailOf(into) && emailOf(from)) {
     merged.email = emailOf(from);
@@ -301,6 +310,32 @@ export async function accountForEmailLink(id: string): Promise<Subscriber | null
   if (direct) return direct;
   const found = await findHeir({ id });
   return found && found.was.email && emailOf(found.heir) === found.was.email ? found.heir : null;
+}
+
+/**
+ * The color log after the list becomes `colors`. Unchanged if it is the same list as before (in any order).
+ * An alert from before the log existed gets its current list recorded first, marked `was`.
+ */
+export function colorLogAfter(existing: Pick<Subscriber, "colors" | "colorLog"> | null | undefined, colors: string[], now: string): Subscriber["colorLog"] {
+  const same = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
+  const log = [...(existing?.colorLog ?? [])];
+  if (existing && log.length === 0) log.push({ at: now, colors: existing.colors, was: true });
+  const last = log[log.length - 1];
+  if (!last || !same(last.colors, colors)) log.push({ at: now, colors });
+  return log.slice(-40);
+}
+
+/** Records that today's "nothing sent" entry has been written for this person, so it is written once a day. */
+export async function markQuietDay(phone: string, date: string) {
+  await (await client()).send(
+    new UpdateCommand({
+      TableName: env.subscribersTable,
+      Key: { phone },
+      UpdateExpression: "SET lastQuietDate = :d",
+      ExpressionAttributeValues: { ":d": date },
+      ConditionExpression: "attribute_exists(phone)",
+    }),
+  );
 }
 
 export async function deleteSubscriber(phone: string) {

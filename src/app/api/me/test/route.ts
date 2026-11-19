@@ -84,7 +84,7 @@ export async function POST() {
     push = pr.dryRun ? "dry-run" : pr.sent > 0 ? "sent" : "failed";
   }
 
-  await logAlert(phone, { date: snapshot.date ?? "", kind: "test", colors: matched, sms, email, push: push === "none" ? undefined : push, why: why.join("; ") || undefined });
+  await logAlert(phone, { date: snapshot.date ?? "", kind: "test", colors: matched, sms, email, push: push === "none" ? undefined : push, why: why.join("; ") || undefined, mine: sub.colors });
 
   const went = (v?: string) => v === "sent" || v === "dry-run";
   if (!went(sms) && !went(email) && !went(push)) {

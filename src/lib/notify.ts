@@ -1,5 +1,5 @@
 import { fetchColors, type ColorsSnapshot } from "./scrape";
-import { deleteSubscriber, emailOf, getKnownColorKeys, listActiveSubscribers, markEndNotice, markNotified, markProblemNotice, saveSnapshot, setSmsStopped, smsOf, DEFAULT_PREFS, type Subscriber } from "./dynamo";
+import { deleteSubscriber, emailOf, getKnownColorKeys, listActiveSubscribers, markEndNotice, markNotified, markProblemNotice, markQuietDay, saveSnapshot, setSmsStopped, smsOf, DEFAULT_PREFS, type Subscriber } from "./dynamo";
 import { sendSms, listOptedOut } from "./sms";
 import { sendEmail, EmailQuotaError } from "./email";
 import { todayIsoMountain, hourMountain, nowIso } from "./dates";
@@ -11,7 +11,7 @@ import { diagnose, alertOwner } from "./health";
 import { pooled } from "./pool";
 import { takeRunLock, releaseRunLock } from "./runlock";
 import { sendPush } from "./push";
-import { deleteAlerts, logAlert, type ChannelStatus } from "./alertlog";
+import { deleteAlerts, logAlert, logQuietDay, type ChannelStatus } from "./alertlog";
 import { unsubscribeUrl } from "./unsubscribe";
 import { colorInfo, everyoneCalled, matchedColors, KNOWN_COLORS } from "./colors";
 import { t, isLang, type Lang } from "./i18n";
@@ -477,6 +477,16 @@ async function run(opts: { force?: boolean }, deadline: number): Promise<NotifyR
     const matched = matchedColors(sub.colors, todayKeys);
     if (matched.length === 0 && (prefs.mode !== "daily" || partial)) {
       result.skipped.push({ phone: sub.phone, reason: partial ? "no match on a partial reading" : "no matching color" });
+      // Nothing is sent, so nothing would be on record. Once a day, write down why: their list and the page's, now.
+      if (sub.lastQuietDate !== snapshot.date && snapshot.date) {
+        try {
+          await logQuietDay(sub.phone, { date: snapshot.date, why: partial ? "partial_reading" : "not_listed", mine: sub.colors, called: [...todayKeys] });
+          await markQuietDay(sub.phone, snapshot.date);
+          sub.lastQuietDate = snapshot.date;
+        } catch (e) {
+          log.error("quiet_day_log_failed", { who: who(sub.phone), date: snapshot.date, err: reason(e) });
+        }
+      }
       return;
     }
     if (hour < prefs.earliestHour && !opts.force) {
@@ -542,6 +552,7 @@ async function run(opts: { force?: boolean }, deadline: number): Promise<NotifyR
         email: st(email),
         push: st(push),
         why: why.join("; ") || undefined,
+        mine: sub.colors,
       });
       // Something was tried and nothing got through: leave them un-notified so the next run tries again.
       const smsWent = !!number && !smsOff && !smsError;
