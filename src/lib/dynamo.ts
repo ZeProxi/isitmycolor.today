@@ -377,6 +377,28 @@ export async function clearEmail(phone: string, reason: "bounce" | "complaint" |
   );
 }
 
+/**
+ * Sets the language alerts are sent in, for an alert that already exists. Returns false when there is no
+ * alert on this account (nothing is created).
+ */
+export async function setAlertLang(phone: string, lang: "en" | "es"): Promise<boolean> {
+  try {
+    await (await client()).send(
+      new UpdateCommand({
+        TableName: env.subscribersTable,
+        Key: { phone },
+        UpdateExpression: "SET lang = :l, updatedAt = :u",
+        ConditionExpression: "attribute_exists(phone)",
+        ExpressionAttributeValues: { ":l": lang, ":u": nowIso() },
+      }),
+    );
+    return true;
+  } catch (e) {
+    if ((e as { name?: string }).name === "ConditionalCheckFailedException") return false;
+    throw e;
+  }
+}
+
 /** Active subscribers using this email (a handful of rows; a scan is fine at this size). */
 export async function findSubscribersByEmail(email: string): Promise<Subscriber[]> {
   const out: Subscriber[] = [];

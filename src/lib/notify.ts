@@ -50,12 +50,35 @@ function capturedAt(snapshot: ColorsSnapshot, l: Lang): string {
   });
 }
 
+const DIAS: Record<string, string> = { sunday: "domingo", monday: "lunes", tuesday: "martes", wednesday: "miércoles", thursday: "jueves", friday: "viernes", saturday: "sábado" };
+
+/** The day of the week as the hotline page gives it, in the person's language. An unrecognized word is left as it is. */
+function dayIn(snapshot: ColorsSnapshot, l: Lang): string {
+  return l === "es" ? (DIAS[snapshot.dayName.trim().toLowerCase()] ?? snapshot.dayName) : snapshot.dayName;
+}
+
+/**
+ * Keeps a text in the basic character set phones bill at 160 characters a message. One letter outside it
+ * (á, í, ó, ú) switches the whole text to a set billed at 70, tripling its cost; é, ñ and ü are in it.
+ */
+function plainLetters(msg: string): string {
+  const swap: Record<string, string> = { á: "a", í: "i", ó: "o", ú: "u", Á: "A", Í: "I", Ó: "O", Ú: "U" };
+  return msg.replace(/[áíóúÁÍÓÚ]/g, (ch) => swap[ch]);
+}
+
 /** The text message for one subscriber. `matched` empty means a "not your color" daily text. */
 export function buildMessage(snapshot: ColorsSnapshot, matched: string[], sub: Who): string {
   const l = langOf(sub);
   const s = t(l);
-  const day = `${snapshot.dayName} ${snapshot.dateText}`;
-  const all = snapshot.colors.map((c) => c.raw).join(", ");
+  const day = `${dayIn(snapshot, l)} ${snapshot.dateText}`;
+  // Every color is named once, in the person's own language ("green", not "green/verde"). A color the
+  // hotline gave no Spanish name for keeps its English one.
+  const all = snapshot.colors
+    .map((c) => {
+      const info = colorInfo(c.key, c);
+      return (l === "es" ? c.spanish || info.spanish || c.english || info.english : c.english || info.english).toLowerCase();
+    })
+    .join(", ");
   let msg: string;
   if (matched.length) {
     const mine = matched
@@ -70,7 +93,7 @@ export function buildMessage(snapshot: ColorsSnapshot, matched: string[], sub: W
   }
   const url = dayPageUrl(snapshot);
   if (sub.prefs?.includeOfficial && url) msg += s.smsLink(url);
-  return msg;
+  return plainLetters(msg);
 }
 
 /**
@@ -119,11 +142,10 @@ export function buildEmailHtml(
       const hex = c.siteBackground ?? info.hex;
       const mine = matched.includes(c.key);
       const primary = l === "es" ? c.spanish || info.spanish || c.english : c.english;
-      const secondary = l === "es" ? c.english : c.spanish || info.spanish;
       return `<tr><td style="padding:0 0 8px">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
           <td bgcolor="${esc(hex)}" style="background:${esc(hex)};color:${info.text};border-radius:6px;padding:16px 18px;${mine ? `border:3px solid ${EMAIL_ACCENT};` : "border:1px solid rgba(255,255,255,0.15);"}">
-            <span style="font:700 24px/1.1 ${font};text-transform:capitalize">${esc(primary)}</span>${secondary ? `<span style="font:500 14px/1.1 ${font};opacity:0.8"> &nbsp;${esc(secondary)}</span>` : ""}
+            <span style="font:700 24px/1.1 ${font};text-transform:capitalize">${esc(primary)}</span>
             ${mine && !about ? `<span style="float:right;background:#ffffff;color:#131313;border-radius:3px;padding:3px 8px;font:700 11px/1.2 ${font}">${esc(s.home.yourColor)}</span>` : ""}
           </td>
         </tr></table>
@@ -152,7 +174,7 @@ export function buildEmailHtml(
     })
     .join(", ");
   const line = about ? s.supporter.emailLine(about.name, mineNames) : isMatch ? s.emailLine.match(mineNames) : snapshot.colors.length ? s.emailLine.noMatch : s.emailLine.none;
-  const body = `      <p style="margin:0;font:600 13px/1.3 ${font};color:${muted}">${esc(snapshot.dayName)} ${esc(snapshot.dateText)}</p>
+  const body = `      <p style="margin:0;font:600 13px/1.3 ${font};color:${muted}">${esc(dayIn(snapshot, l))} ${esc(snapshot.dateText)}</p>
       <p style="margin:6px 0 18px;font:700 26px/1.15 ${font};color:${isMatch ? EMAIL_ACCENT : fg}">${esc(about ? s.supporter.emailSubject(about.name) : isMatch ? s.emailSubject.match : s.emailSubject.noMatch)}</p>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${tiles}</table>
       <p style="margin:12px 0 0;padding-top:16px;border-top:1px solid ${rule};font:15px/1.55 ${font};color:${fg}">${esc(line)}</p>
@@ -189,7 +211,7 @@ async function notifySupporters(snapshot: ColorsSnapshot, matched: string[], sub
     // A text only to a number they added and proved themselves, and never after a STOP.
     if (person.sms && !env.smsPending && !optedOut?.has(person.sms)) {
       try {
-        await sendSms(person.sms, s.supporter.sms(name, colors.toUpperCase(), `${snapshot.dayName} ${snapshot.dateText}`));
+        await sendSms(person.sms, s.supporter.sms(name, colors.toUpperCase(), `${dayIn(snapshot, l)} ${snapshot.dateText}`));
       } catch (e) {
         console.warn("supporter text failed", e instanceof Error ? e.message : e);
       }

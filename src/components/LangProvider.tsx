@@ -22,7 +22,7 @@ export function useLang() {
   return { lang, s: t(lang) };
 }
 
-/** EN / ES switch. Stores the choice in a cookie and re-renders the server tree. */
+/** EN / ES switch. Stores the choice in a cookie, re-renders the server tree, and moves a signed-in person's alerts to that language. */
 export function LangToggle() {
   const { lang } = useLang();
   const router = useRouter();
@@ -31,6 +31,9 @@ export function LangToggle() {
   function set(next: Lang) {
     if (next === lang) return;
     writeLangCookie(next);
+    // Someone with an alert gets it in the language they read the site in. Signed-out visitors get a
+    // 401 here, which is fine: there is nothing to update.
+    fetch("/api/me/lang", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ lang: next }), keepalive: true }).catch(() => {});
     start(() => router.refresh());
   }
 
