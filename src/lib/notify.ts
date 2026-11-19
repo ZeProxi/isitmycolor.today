@@ -70,7 +70,8 @@ function plainLetters(msg: string): string {
 export function buildMessage(snapshot: ColorsSnapshot, matched: string[], sub: Who): string {
   const l = langOf(sub);
   const s = t(l);
-  const day = `${dayIn(snapshot, l)} ${snapshot.dateText}`;
+  // "Thu 11/19": three letters of the day and no year, so the text fits in one billed message.
+  const shortDay = `${dayIn(snapshot, l).slice(0, 3)} ${snapshot.dateText.replace(/\/\d{4}$/, "")}`;
   // Every color is named once, in the person's own language ("green", not "green/verde"). A color the
   // hotline gave no Spanish name for keeps its English one.
   const all = snapshot.colors
@@ -87,9 +88,11 @@ export function buildMessage(snapshot: ColorsSnapshot, matched: string[], sub: W
         return (l === "es" && c.spanish ? c.spanish : c.english).toUpperCase();
       })
       .join(", ");
-    msg = s.sms(mine, day, all);
+    msg = s.sms(mine, shortDay, matched.length > 1);
   } else {
-    msg = snapshot.colors.length ? s.smsNoMatch(day, all) : s.smsNoMatchNone(day);
+    msg = snapshot.colors.length ? s.smsNoMatch(shortDay, all) : s.smsNoMatchNone(shortDay);
+    // A long list of colors would tip this into a second billed text; say how many were called instead.
+    if (plainLetters(msg).length > 160) msg = s.smsNoMatchShort(shortDay, snapshot.colors.length);
   }
   const url = dayPageUrl(snapshot);
   if (sub.prefs?.includeOfficial && url) msg += s.smsLink(url);

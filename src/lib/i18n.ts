@@ -267,6 +267,9 @@ const en = {
   },
   smsNoMatch: (day: string, all: string) =>
     `Not your color today, ${day}. Colors today: ${all}. Unofficial tool - always confirm at wasatch.org/colors or (385) 268-5002.`,
+  /** Used when the list of colors would push the text past 160 characters (billed as two). */
+  smsNoMatchShort: (day: string, n: number) =>
+    `Not your color today, ${day}. ${n} colors were called. Unofficial tool - always confirm at wasatch.org/colors or (385) 268-5002.`,
   smsNoMatchNone: (day: string) =>
     `No colors are listed for today, ${day}. Unofficial tool - confirm at wasatch.org/colors or (385) 268-5002.`,
   smsLink: (url: string) => ` Saved copy of the page: ${url}`,
@@ -626,8 +629,9 @@ const en = {
     rateLimited: "That's plenty for now. Try again in an hour.",
     failed: "Couldn't send. Try again later.",
   },
-  sms: (mine: string, day: string, all: string) =>
-    `Your color (${mine}) is up today, ${day}. All colors today: ${all}. Unofficial tool - always confirm at wasatch.org/colors or (385) 268-5002. Reply STOP to opt out.`,
+  /** Kept short on purpose: over 160 characters a text is billed as two. `many` is true for more than one color. */
+  sms: (mine: string, day: string, many: boolean) =>
+    `${mine} ${many ? "are" : "is"} up today, ${day}. Unofficial - always confirm at wasatch.org/colors or (385) 268-5002. Reply STOP to opt out.`,
 };
 
 export type Dict = typeof en;
@@ -893,6 +897,8 @@ const es: Dict = {
   },
   smsNoMatch: (day: string, all: string) =>
     `Hoy no es tu color, ${day}. Colores de hoy: ${all}. Herramienta no oficial: confirma siempre en wasatch.org/colors o al (385) 268-5002.`,
+  smsNoMatchShort: (day: string, n: number) =>
+    `Hoy no es tu color, ${day}. Salieron ${n} colores. Herramienta no oficial: confirma siempre en wasatch.org/colors o al (385) 268-5002.`,
   smsNoMatchNone: (day: string) =>
     `Hoy no hay colores publicados, ${day}. Herramienta no oficial: confirma en wasatch.org/colors o al (385) 268-5002.`,
   smsLink: (url: string) => ` Copia guardada de la página: ${url}`,
@@ -1252,8 +1258,8 @@ const es: Dict = {
     rateLimited: "Con eso basta por ahora. Intenta en una hora.",
     failed: "No se pudo enviar. Intenta más tarde.",
   },
-  sms: (mine: string, day: string, all: string) =>
-    `Tu color (${mine}) sale hoy, ${day}. Colores de hoy: ${all}. Herramienta no oficial: confirma siempre en wasatch.org/colors o al (385) 268-5002. Responde STOP para darte de baja.`,
+  sms: (mine: string, day: string, many: boolean) =>
+    `${mine} ${many ? "salen" : "sale"} hoy, ${day}. No oficial: confirma siempre en wasatch.org/colors o al (385) 268-5002. Responde STOP para darte de baja.`,
 };
 
 const dicts: Record<Lang, Dict> = { en, es };
