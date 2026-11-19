@@ -58,7 +58,7 @@ With `SMS_DRY_RUN=true` (the default in `.env.example`) nothing is actually sent
 printed to the dev server console, and the sign-in code is shown on the page.
 
 `EMAIL_DRY_RUN` and `PUSH_DRY_RUN` override that for email and device notifications, so you can send real
-email locally (`EMAIL_DRY_RUN=false` with `RESEND_API_KEY` and `EMAIL_FROM`) while texts stay off.
+email locally (`EMAIL_DRY_RUN=false` with `EMAIL_FROM` on a domain verified in Amazon SES) while texts stay off.
 
 Useful scripts:
 
@@ -114,10 +114,8 @@ npx tsx scripts/sns-sandbox.ts verify +18015551234 123456
 5. SMS: the AWS account starts in the SNS sandbox (texts only reach verified numbers). Request production
    access in the SNS console under Text messaging (SMS) → Sandbox. US carriers may also require a
    registered origination number or toll-free number for reliable delivery.
-6. Email (optional), through either provider:
-   - **Resend:** verify the domain in Resend (it lists the DNS records to add), then set `RESEND_API_KEY`
-     (SecureString) and `EMAIL_FROM` in SSM. When the key is present, all email goes through Resend.
-   - **Amazon SES:** verify a sender identity, set `EMAIL_FROM`, and request SES production access.
+6. Email (optional), through Amazon SES: verify a sender identity, set `EMAIL_FROM`, and request SES
+   production access.
 7. Note: SNS text messages can't carry images (no MMS), which is why "include the official page" sends a
    link to the saved copy instead of a screenshot. A real screenshot (headless Chrome in a Lambda) could be
    added later for the email channel.
@@ -177,11 +175,6 @@ and `List-Unsubscribe` headers. SES publishes bounces and complaints through the
 `/api/ses/events`; the handler verifies the SNS signature and topic, then removes the address from the
 subscriber on a permanent bounce or a complaint. The person sees why on their Alerts card and can add an
 address again. Setup: `scripts/setup-ses-events.sh`.
-
-With Resend the same thing happens through a webhook: in the Resend dashboard add a webhook to
-`https://<your site>/api/resend/events` for the `email.bounced` and `email.complained` events, and put its
-signing secret in SSM as `RESEND_WEBHOOK_SECRET` (SecureString). The handler checks the signature and
-removes the address the same way.
 
 ## STOP and START
 

@@ -13,9 +13,8 @@ export function isEmail(v: string): boolean {
 }
 
 /**
- * Sends an email. Goes through Resend when RESEND_API_KEY is set, otherwise
- * through Amazon SES. Either way EMAIL_FROM must be a sender on a domain
- * verified with that provider.
+ * Sends an email through Amazon SES. EMAIL_FROM must be a sender on a domain
+ * verified there.
  */
 export async function sendEmail(
   to: string,
@@ -32,8 +31,8 @@ export async function sendEmail(
     console.log(`[EMAIL_DRY_RUN] to ${to}: ${subject}\n${text}`);
     return { dryRun: true };
   }
-  if (env.resendApiKey) return sendViaResend(to, subject, text, html, replyTo, from, unsubscribeUrl);
-  const r = await ses().send(
+  const r = await ses()
+    .send(
     new SendEmailCommand({
       FromEmailAddress: from || env.emailFrom,
       ...(env.sesConfigSet ? { ConfigurationSetName: env.sesConfigSet } : {}),
@@ -57,7 +56,12 @@ export async function sendEmail(
         },
       },
     }),
-  );
+    )
+    .catch((e: unknown) => {
+      // The day's sending allowance is spent: nothing goes through until it resets, so callers say so.
+      if ((e as { name?: string }).name === "LimitExceededException") throw new EmailQuotaError(`SES: ${e instanceof Error ? e.message : "sending allowance used up"}`);
+      throw e;
+    });
   return { messageId: r.MessageId, dryRun: false };
 }
 
@@ -66,48 +70,5 @@ export class EmailQuotaError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "EmailQuotaError";
-  }
-}
-
-async function sendViaResend(
-  to: string,
-  subject: string,
-  text: string,
-  html?: string,
-  replyTo?: string,
-  from?: string,
-  unsubscribeUrl?: string,
-): Promise<{ messageId?: string; dryRun: boolean }> {
-  const request = () =>
-    fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { authorization: `Bearer ${env.resendApiKey}`, "content-type": "application/json" },
-      body: JSON.stringify({
-        from: from || env.emailFrom,
-        to: [to],
-        subject,
-        text,
-        ...(html ? { html } : {}),
-        ...(replyTo ? { reply_to: replyTo } : {}),
-        ...(unsubscribeUrl
-          ? { headers: { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } }
-          : {}),
-      }),
-      signal: AbortSignal.timeout(20_000),
-    });
-  // Resend answers 429 for two different things: too many requests this second (wait a moment and it
-  // goes through), or the day's/month's allowance being spent (nothing will go through until it resets).
-  for (let attempt = 0; ; attempt++) {
-    const res = await request();
-    const body = (await res.json().catch(() => ({}))) as { id?: string; message?: string; name?: string };
-    if (res.ok) return { messageId: body.id, dryRun: false };
-    const quota = res.status === 429 && /quota/i.test(`${body.name ?? ""} ${body.message ?? ""}`);
-    if (quota) throw new EmailQuotaError(`Resend: ${body.message ?? body.name ?? "sending allowance used up"}`);
-    if (res.status === 429 && attempt < 3) {
-      await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
-      continue;
-    }
-    // Thrown like an SES failure, so callers log it as "failed: ..." the same way.
-    throw new Error(`Resend ${res.status}: ${body.message ?? body.name ?? "send failed"}`);
   }
 }

@@ -311,20 +311,20 @@ const en = {
   },
   privacy: {
     title: "Privacy policy",
-    updated: "Last updated November 17, 2026",
+    updated: "Last updated November 19, 2026",
     sections: [
       ["What this site is", "isitmycolor.today is a free, community-built tool that re-reads the public Wasatch Behavioral Health UA color hotline page and can send you an alert on the days your color is listed. It is not affiliated with Wasatch Behavioral Health."],
       ["What we collect", "If you sign up for alerts: your mobile phone number, your email address, or both (whichever you choose to be reached at), the colors you choose, your alert settings and your language. We also record when you accepted the agreement. Browsing the site without signing up stores only a language preference in your browser."],
       ["How we use it", "Your phone number and email address are used only to send you sign-in codes and your alerts, each one only after you confirm it with a code. If you add a support person, their email address is stored with your alert and used only to invite them and, once they accept, to email them on your color days. They may also add their own mobile number, confirmed with a code, to get a text on those days; you are not shown that number. They can stop at any time, and their details are deleted when you remove them or stop your alert. We do not sell, rent, or share your information with anyone, and we do not use it for advertising."],
       ["Text messages", "Message frequency is normally at most one text per day, plus sign-in codes you request. On rare days you may get a second: a notice that we couldn't read the hotline page, followed by your alert once it could be read, or a correction if your color is added after we told you it wasn't listed. Message and data rates may apply. Reply STOP to any message to stop receiving texts, or remove your alert from the Alerts page. Reply HELP for help."],
-      ["Where it is stored", "Data is stored in Amazon Web Services in the United States. Texts are sent through Amazon SNS and emails through Resend (resend.com), an email delivery service. Each day's copy of the public hotline page is also stored so the History pages can show it."],
+      ["Where it is stored", "Data is stored in Amazon Web Services in the United States. Texts are sent through Amazon SNS and emails through Amazon SES. Each day's copy of the public hotline page is also stored so the History pages can show it."],
       ["Deleting your data", "Open the Alerts page, sign in with your number or email, and choose Stop alerts. That removes your number, email, colors, settings and alert history. You can also set a date in your alert settings and it will all be deleted automatically after that day. Texting STOP stops texts. Deleted records can remain in encrypted database backups for up to 35 days, after which they are gone for good; backups are used only to recover from a failure."],
       ["Contact", "Questions about privacy can be sent through the project's source-code repository, linked in the footer."],
     ],
   },
   terms: {
     title: "Terms of use",
-    updated: "Last updated November 17, 2026",
+    updated: "Last updated November 19, 2026",
     sections: [
       ["Not an official service", "isitmycolor.today is an independent, community-built, open-source tool. It is not affiliated with, endorsed by, or maintained by Wasatch Behavioral Health, wasatch.org, or any court, clinic, treatment program, or probation office."],
       ["No guarantee", "The site re-reads a public web page and relays what it finds. It can be wrong, late, incomplete, or unavailable. Alerts may fail to send or arrive. The service is provided as-is, with no warranty of any kind."],
@@ -937,20 +937,20 @@ const es: Dict = {
   },
   privacy: {
     title: "Política de privacidad",
-    updated: "Última actualización: 17 de noviembre de 2026",
+    updated: "Última actualización: 19 de noviembre de 2026",
     sections: [
       ["Qué es este sitio", "isitmycolor.today es una herramienta comunitaria y gratuita que vuelve a leer la página pública de la línea de colores de UA de Wasatch Behavioral Health y puede enviarte una alerta los días en que aparece tu color. No está afiliado a Wasatch Behavioral Health."],
       ["Qué recopilamos", "Si te registras para alertas: tu número de celular, tu correo electrónico o ambos (según cómo quieras que te avisemos), los colores que eliges, tus ajustes de alerta y tu idioma. También registramos cuándo aceptaste el acuerdo. Navegar sin registrarte solo guarda una preferencia de idioma en tu navegador."],
       ["Cómo lo usamos", "Tu número y tu correo se usan solo para enviarte códigos de acceso y tus alertas, cada uno solo después de que lo confirmes con un código. Si agregas una persona de apoyo, su correo se guarda con tu alerta y se usa solo para invitarla y, cuando acepte, para escribirle en los días de tu color. También puede agregar su propio número de celular, confirmado con un código, para recibir un texto esos días; ese número no se te muestra. Puede detenerlo cuando quiera, y sus datos se borran cuando la quitas o detienes tu alerta. No vendemos, alquilamos ni compartimos tu información con nadie, ni la usamos para publicidad."],
       ["Mensajes de texto", "La frecuencia normal es de máximo un texto por día, más los códigos de acceso que solicites. En días poco comunes puedes recibir un segundo: un aviso de que no pudimos leer la página de la línea, seguido de tu alerta cuando sí se pudo leer, o una corrección si agregan tu color después de que te dijimos que no estaba. Pueden aplicar tarifas de mensajes y datos. Responde STOP a cualquier mensaje para dejar de recibir textos, o elimina tu alerta en la página Alertas. Responde HELP para ayuda."],
-      ["Dónde se guarda", "Los datos se guardan en Amazon Web Services en Estados Unidos. Los textos se envían por Amazon SNS y los correos por Resend (resend.com), un servicio de envío de correo. También se guarda una copia diaria de la página pública de la línea para mostrarla en el Historial."],
+      ["Dónde se guarda", "Los datos se guardan en Amazon Web Services en Estados Unidos. Los textos se envían por Amazon SNS y los correos por Amazon SES. También se guarda una copia diaria de la página pública de la línea para mostrarla en el Historial."],
       ["Eliminar tus datos", "Abre la página de Alertas, entra con tu número o tu correo y elige Detener alertas. Eso borra tu número, correo, colores, ajustes e historial de alertas. También puedes fijar una fecha en los ajustes y todo se borrará automáticamente después de ese día. Enviar STOP detiene los textos. Los datos borrados pueden permanecer en copias de seguridad cifradas de la base de datos hasta 35 días, y después desaparecen por completo; las copias solo se usan para recuperarse de una falla."],
       ["Contacto", "Las preguntas sobre privacidad pueden enviarse a través del repositorio de código del proyecto, enlazado al pie de página."],
     ],
   },
   terms: {
     title: "Términos de uso",
-    updated: "Última actualización: 17 de noviembre de 2026",
+    updated: "Última actualización: 19 de noviembre de 2026",
     sections: [
       ["No es un servicio oficial", "isitmycolor.today es una herramienta independiente, comunitaria y de código abierto. No está afiliada, respaldada ni mantenida por Wasatch Behavioral Health, wasatch.org ni ningún tribunal, clínica, programa de tratamiento u oficina de libertad condicional."],
       ["Sin garantía", "El sitio vuelve a leer una página web pública y muestra lo que encuentra. Puede fallar, atrasarse, estar incompleto o no estar disponible. Las alertas pueden no enviarse o no llegar. El servicio se ofrece tal cual, sin garantía de ningún tipo."],

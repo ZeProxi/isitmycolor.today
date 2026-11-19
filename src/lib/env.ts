@@ -73,15 +73,7 @@ export const env = {
   get siteUrl() {
     return read("SITE_URL").replace(/\/$/, "");
   },
-  /** Resend API key. When set, email goes out through Resend; otherwise through Amazon SES. */
-  get resendApiKey() {
-    return read("RESEND_API_KEY");
-  },
-  /** Signing secret of the Resend webhook ("whsec_..."); /api/resend/events rejects everything without it. */
-  get resendWebhookSecret() {
-    return read("RESEND_WEBHOOK_SECRET");
-  },
-  /** Verified sender (a Resend or SES domain), e.g. "My Color <alerts@yourdomain.com>". Empty disables email. */
+  /** Verified sender (an Amazon SES domain), e.g. "My Color <alerts@yourdomain.com>". Empty disables email. */
   get emailFrom() {
     return read("EMAIL_FROM");
   },
