@@ -9,6 +9,7 @@ import { alertOwner } from "./health";
 import { codeEmail } from "./email-layout";
 import { ready } from "./config";
 import { log, reason, who } from "./log";
+import { allow } from "./ratelimit";
 import type { Contact, Contacts } from "./contact";
 
 /**
@@ -46,6 +47,9 @@ export async function sendCode(c: Contact, lang: "en" | "es" = "en", consentAt?:
   const prev = await getOtp(c.value);
   const recent = (prev?.sentAt ?? []).filter((t) => now - t < SEND_WINDOW_MS);
   if (recent.length >= MAX_SENDS_PER_WINDOW) return { ok: false, error: "rate_limited" };
+  // The check above reads, then writes later, so a burst of requests for one number could all pass it. This
+  // one can't be raced. Keyed by a tag of the contact, never the contact itself.
+  if (!(await allow(`codes:to:${who(c.value)}`, MAX_SENDS_PER_WINDOW, SEND_WINDOW_MS / 1000))) return { ok: false, error: "rate_limited" };
   if (c.kind === "sms" && (await isOptedOut(c.value))) return { ok: false, error: "opted_out" }; // the carrier would drop it anyway
 
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");

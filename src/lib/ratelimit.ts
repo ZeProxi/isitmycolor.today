@@ -1,32 +1,46 @@
-import { GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient } from "./dynamo";
 import { env } from "./env";
 import { ready } from "./config";
 import { todayIsoMountain } from "./dates";
 
 /**
- * Small sliding-window rate limiter on DynamoDB (history table, pk "RL").
+ * Small rate limiter on DynamoDB (history table, pk "RL"): at most `max` in each window of `windowSec`.
  * Good enough to keep a bored person or a script from running up SMS, email,
  * or compute costs; it is not a substitute for a WAF under a real flood.
  *
  *   await allow(`codes:ip:${ip}`, 10, 3600)      // 10 per hour for this address
  *   await allow(`codes:day:${today}`, 300, 86400) // 300 per day site-wide
+ *
+ * The count and the check are one database operation. They used to be a read followed by a write, and a
+ * burst of requests arriving together could all read "under the limit" before any of them wrote, so a
+ * script firing a few thousand at once went straight through. Now each request adds one only if the
+ * total is still under the limit, and the database decides that one request at a time.
+ *
+ * Windows are fixed (this hour, this day), not sliding: someone can use a full allowance at the end of
+ * one window and again at the start of the next. That is at most double, briefly, and worth it for a
+ * limit that can't be raced.
  */
 export async function allow(key: string, max: number, windowSec: number): Promise<boolean> {
   await ready();
   const now = Date.now();
-  const Key = { pk: "RL", sk: key };
-  const r = await docClient().send(new GetCommand({ TableName: env.historyTable, Key }));
-  const hits = ((r.Item?.hits as number[] | undefined) ?? []).filter((t) => now - t < windowSec * 1000);
-  if (hits.length >= max) return false;
-  hits.push(now);
-  await docClient().send(
-    new PutCommand({
-      TableName: env.historyTable,
-      Item: { ...Key, hits, ttl: Math.floor(now / 1000) + windowSec * 2 },
-    }),
-  );
-  return true;
+  const window = Math.floor(now / (windowSec * 1000));
+  try {
+    await docClient().send(
+      new UpdateCommand({
+        TableName: env.historyTable,
+        Key: { pk: "RL", sk: `${key}#${window}` },
+        UpdateExpression: "ADD #n :one SET #t = :ttl",
+        ConditionExpression: "attribute_not_exists(#n) OR #n < :max",
+        ExpressionAttributeNames: { "#n": "n", "#t": "ttl" },
+        ExpressionAttributeValues: { ":one": 1, ":max": max, ":ttl": Math.floor(now / 1000) + windowSec * 2 },
+      }),
+    );
+    return true;
+  } catch (e) {
+    if ((e as { name?: string }).name === "ConditionalCheckFailedException") return false;
+    throw e;
+  }
 }
 
 /**

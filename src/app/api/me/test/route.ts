@@ -10,6 +10,7 @@ import { unsubscribeUrl } from "@/lib/unsubscribe";
 import { t, isLang } from "@/lib/i18n";
 import { matchedColors } from "@/lib/colors";
 import { log, reason, who } from "@/lib/log";
+import { allow } from "@/lib/ratelimit";
 
 const MAX_PER_DAY = 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -28,6 +29,8 @@ export async function POST() {
   const now = Date.now();
   const recent = (sub.testSends ?? []).filter((ts) => now - ts < DAY_MS);
   if (recent.length >= MAX_PER_DAY) return Response.json({ error: "limit" }, { status: 429 });
+  // Same limit again, in a form a burst of simultaneous requests can't slip past (see ratelimit.ts).
+  if (!(await allow(`test:${who(phone)}`, MAX_PER_DAY, 86400))) return Response.json({ error: "limit" }, { status: 429 });
 
   let snapshot;
   try {
