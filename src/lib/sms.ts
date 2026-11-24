@@ -1,13 +1,25 @@
-import { SNSClient, PublishCommand, CheckIfPhoneNumberIsOptedOutCommand, ListPhoneNumbersOptedOutCommand } from "@aws-sdk/client-sns";
+import {
+  PinpointSMSVoiceV2Client,
+  SendTextMessageCommand,
+  DescribeOptedOutNumbersCommand,
+} from "@aws-sdk/client-pinpoint-sms-voice-v2";
 import { env, awsCredentials } from "./env";
 import { ready } from "./config";
 import { log, reason } from "./log";
 
-let _sns: SNSClient | null = null;
-function sns() {
-  if (!_sns) _sns = new SNSClient({ region: env.region, credentials: awsCredentials() });
-  return _sns;
+/**
+ * Texts go out through AWS End User Messaging, the service the toll-free number
+ * and its approval belong to. The older SNS route accepts a text for this number
+ * and then fails to deliver it.
+ */
+let _sms: PinpointSMSVoiceV2Client | null = null;
+function sms() {
+  if (!_sms) _sms = new PinpointSMSVoiceV2Client({ region: env.region, credentials: awsCredentials() });
+  return _sms;
 }
+
+/** The list AWS adds a number to when it replies STOP, and takes it off on START. */
+const OPT_OUT_LIST = "Default";
 
 /** Normalize a US phone number to E.164. Returns null if it is not a plausible number. */
 export function normalizePhone(raw: string): string | null {
@@ -40,23 +52,19 @@ export async function sendSms(
     return { dryRun: true };
   }
   await turn();
-  const r = await sns().send(
-    new PublishCommand({
-      PhoneNumber: phone,
-      Message: message,
-      MessageAttributes: {
-        "AWS.SNS.SMS.SMSType": { DataType: "String", StringValue: "Transactional" },
-        ...(env.smsOriginationNumber
-          ? { "AWS.MM.SMS.OriginationNumber": { DataType: "String", StringValue: env.smsOriginationNumber } }
-          : {}),
-      },
+  const r = await sms().send(
+    new SendTextMessageCommand({
+      DestinationPhoneNumber: phone,
+      MessageBody: message,
+      MessageType: "TRANSACTIONAL",
+      ...(env.smsOriginationNumber ? { OriginationIdentity: env.smsOriginationNumber } : {}),
     }),
   );
   return { messageId: r.MessageId, dryRun: false };
 }
 
 /**
- * STOP replies are handled by Amazon SNS, which keeps its own opted-out list and
+ * STOP replies are handled by AWS, which keeps its own opted-out list and
  * refuses to deliver to those numbers. These two lookups let the site know about
  * it, so it stops trying, records it honestly, and can tell the person how to
  * get texts back (reply START).
@@ -64,11 +72,15 @@ export async function sendSms(
 export async function isOptedOut(phone: string): Promise<boolean> {
   await ready();
   try {
-    const r = await sns().send(new CheckIfPhoneNumberIsOptedOutCommand({ phoneNumber: phone }));
-    return !!r.isOptedOut;
+    const r = await sms().send(
+      new DescribeOptedOutNumbersCommand({ OptOutListName: OPT_OUT_LIST, OptedOutNumbers: [phone] }),
+    );
+    return (r.OptedOutNumbers ?? []).some((n) => n.OptedOutNumber === phone);
   } catch (e) {
+    // Asking about a number that isn't on the list is answered with "not found".
+    if (e instanceof Error && e.name === "ResourceNotFoundException") return false;
     log.warn("optout_check_failed", { err: reason(e) });
-    return false; // SNS still enforces the opt-out itself; we just won't know this run
+    return false; // AWS still enforces the opt-out itself; we just won't know this run
   }
 }
 
@@ -76,13 +88,13 @@ export async function isOptedOut(phone: string): Promise<boolean> {
 export async function listOptedOut(): Promise<Set<string> | null> {
   await ready();
   const out = new Set<string>();
-  let nextToken: string | undefined;
+  let NextToken: string | undefined;
   try {
     do {
-      const r = await sns().send(new ListPhoneNumbersOptedOutCommand({ nextToken }));
-      for (const n of r.phoneNumbers ?? []) out.add(n);
-      nextToken = r.nextToken;
-    } while (nextToken);
+      const r = await sms().send(new DescribeOptedOutNumbersCommand({ OptOutListName: OPT_OUT_LIST, NextToken }));
+      for (const n of r.OptedOutNumbers ?? []) if (n.OptedOutNumber) out.add(n.OptedOutNumber);
+      NextToken = r.NextToken;
+    } while (NextToken);
     return out;
   } catch (e) {
     log.warn("optout_list_failed", { err: reason(e) });

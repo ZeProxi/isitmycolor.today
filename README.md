@@ -42,7 +42,7 @@ page or calling the hotline at (385) 268-5002.
 
 ## Stack
 
-Next.js 16 (App Router, Cache Components), Tailwind v4, DynamoDB, SNS (SMS), SES (email, optional),
+Next.js 16 (App Router, Cache Components), Tailwind v4, DynamoDB, AWS End User Messaging (SMS), SES (email, optional),
 EventBridge rule + API destination (cron), SSM Parameter Store (config). Hosted on AWS Amplify.
 
 ## Local development
@@ -65,7 +65,7 @@ Useful scripts:
 ```bash
 npx tsx scripts/run-notify.ts            # run the scrape + notify job once
 npx tsx scripts/run-notify.ts --force    # ignore "already notified" and texting-window guards
-npx tsx scripts/sns-sandbox.ts status    # SNS SMS sandbox status
+npx tsx scripts/sns-sandbox.ts status    # SMS sandbox status
 npx tsx scripts/sns-sandbox.ts add +18015551234      # verify a number while in the sandbox
 npx tsx scripts/sns-sandbox.ts verify +18015551234 123456
 ```
@@ -111,12 +111,13 @@ npx tsx scripts/sns-sandbox.ts verify +18015551234 123456
    runs capture the new day for the calendar. Each person picks their earliest text hour (1 am to 12 pm,
    default 6 am); the global window `NOTIFY_START_HOUR`..`NOTIFY_END_HOUR` (default 1 am to 9 pm) is a
    floor on top of that.
-5. SMS: the AWS account starts in the SNS sandbox (texts only reach verified numbers). Request production
-   access in the SNS console under Text messaging (SMS) → Sandbox. US carriers may also require a
+5. SMS: texts are sent with AWS End User Messaging, not SNS (SNS accepts a text for a registered
+   toll-free number and then fails to deliver it). The account starts in the sandbox (texts only reach
+   verified numbers). Request production access in the End User Messaging SMS console. US carriers may also require a
    registered origination number or toll-free number for reliable delivery.
 6. Email (optional), through Amazon SES: verify a sender identity, set `EMAIL_FROM`, and request SES
    production access.
-7. Note: SNS text messages can't carry images (no MMS), which is why "include the official page" sends a
+7. Note: these text messages can't carry images (no MMS), which is why "include the official page" sends a
    link to the saved copy instead of a screenshot. A real screenshot (headless Chrome in a Lambda) could be
    added later for the email channel.
 
@@ -178,7 +179,7 @@ address again. Setup: `scripts/setup-ses-events.sh`.
 
 ## STOP and START
 
-Carrier opt-outs are enforced by Amazon SNS. The site reads the SNS opted-out list on every notify run
+Carrier opt-outs are enforced by AWS End User Messaging. The site reads its opted-out list on every notify run
 and before any sign-in code or test text, marks those subscribers `smsStopped`, skips their text channel
 (email and push continue), shows "stopped" in their alert history, and tells them to text START to the
 toll-free number to get texts back. The compute role needs `sns:ListPhoneNumbersOptedOut` and

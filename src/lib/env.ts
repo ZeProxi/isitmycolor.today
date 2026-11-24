@@ -97,7 +97,7 @@ export const env = {
   get screenshotFunction() {
     return read("SCREENSHOT_FUNCTION");
   },
-  /** E.164 toll-free/10DLC number texts are sent from. Empty lets SNS pick. */
+  /** E.164 toll-free/10DLC number texts are sent from. Empty lets AWS pick. */
   get smsOriginationNumber() {
     return read("SMS_ORIGINATION_NUMBER");
   },
