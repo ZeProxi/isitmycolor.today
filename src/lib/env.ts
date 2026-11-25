@@ -101,6 +101,35 @@ export const env = {
   get smsOriginationNumber() {
     return read("SMS_ORIGINATION_NUMBER");
   },
+  /**
+   * Which company carries the texts: "aws" (End User Messaging) or "twilio". Both stay set up, so
+   * changing this one setting moves every text to the other. Nothing switches by itself.
+   */
+  get smsProvider(): "aws" | "twilio" {
+    return read("SMS_PROVIDER") === "twilio" ? "twilio" : "aws";
+  },
+  get twilioAccountSid() {
+    return read("TWILIO_ACCOUNT_SID");
+  },
+  /** An API key that may only send and look up messages, never the account's main token. */
+  get twilioKeySid() {
+    return read("TWILIO_API_KEY_SID");
+  },
+  get twilioKeySecret() {
+    return read("TWILIO_API_KEY_SECRET");
+  },
+  /** The Twilio messaging service the registered campaign and number belong to. */
+  get twilioMessagingService() {
+    return read("TWILIO_MESSAGING_SERVICE_SID");
+  },
+  /** Password Twilio must present when it reports a STOP or START reply. */
+  get twilioWebhookSecret() {
+    return read("TWILIO_WEBHOOK_SECRET");
+  },
+  /** The number people see texts come from, shown where the site says "text START to ...". */
+  get smsDisplayNumber() {
+    return this.smsProvider === "twilio" ? read("TWILIO_NUMBER") : read("SMS_ORIGINATION_NUMBER");
+  },
   /** Optional one-line notice shown at the top of every page (e.g. "Texts delayed today"). */
   get siteNotice() {
     return read("SITE_NOTICE");

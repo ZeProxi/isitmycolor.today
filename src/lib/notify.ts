@@ -1,8 +1,8 @@
 import { fetchColors, type ColorsSnapshot } from "./scrape";
-import { deleteSubscriber, emailOf, getKnownColorKeys, listActiveSubscribers, markEndNotice, markNotified, markProblemNotice, markQuietDay, saveSnapshot, setSmsStopped, smsOf, DEFAULT_PREFS, type Subscriber } from "./dynamo";
-import { sendSms, listOptedOut } from "./sms";
+import { deleteSubscriber, emailOf, getKnownColorKeys, listActiveSubscribers, markEndNotice, markNotified, markProblemNotice, markQuietDay, saveSnapshot, smsOf, DEFAULT_PREFS, type Subscriber } from "./dynamo";
+import { sendSms, listOptedOut, smsBlocked, syncAwsStop, textPerson, SmsStopped, SMS_BRAND_LENGTH } from "./sms";
 import { sendEmail, EmailQuotaError } from "./email";
-import { todayIsoMountain, hourMountain, nowIso } from "./dates";
+import { todayIsoMountain, hourMountain } from "./dates";
 import { env } from "./env";
 import { ready } from "./config";
 import { log, reason, who } from "./log";
@@ -97,7 +97,7 @@ export function buildMessage(snapshot: ColorsSnapshot, matched: string[], sub: W
   } else {
     msg = snapshot.colors.length ? s.smsNoMatch(shortDay, all) : s.smsNoMatchNone(shortDay);
     // A long list of colors would tip this into a second billed text; say how many were called instead.
-    if (plainLetters(msg).length > 160) msg = s.smsNoMatchShort(shortDay, snapshot.colors.length);
+    if (plainLetters(msg).length > 160 - SMS_BRAND_LENGTH) msg = s.smsNoMatchShort(shortDay, snapshot.colors.length);
   }
   // No link to the saved copy here: it would tip every text into a second billed message. Emails carry it.
   return plainLetters(msg);
@@ -219,9 +219,10 @@ async function notifySupporters(snapshot: ColorsSnapshot, matched: string[], sub
     // A text only to a number they added and proved themselves, and never after a STOP.
     if (person.sms && !env.smsPending && !optedOut?.has(person.sms)) {
       try {
-        await sendSms(person.sms, s.supporter.sms(name, colors.toUpperCase(), `${dayIn(snapshot, l)} ${snapshot.dateText}`));
+        await sendSms(person.sms, plainLetters(s.supporter.sms(name, colors.toUpperCase(), `${dayIn(snapshot, l)} ${snapshot.dateText}`)));
       } catch (e) {
-        log.error("alert_failed", { kind: "supporter", ch: "sms", who: who(sub.phone), err: reason(e) });
+        if (e instanceof SmsStopped) log.warn("sms_stopped", { who: who(sub.phone), kind: "supporter" });
+        else log.error("alert_failed", { kind: "supporter", ch: "sms", who: who(sub.phone), err: reason(e) });
       }
     }
   }
@@ -249,8 +250,8 @@ async function sendUnreadableNotices(today: string, hour: number, deadline: numb
     const number = smsOf(sub);
     const address = sub.emailStopped ? undefined : emailOf(sub);
     let sms: ChannelStatus | undefined, email: ChannelStatus | undefined, push: ChannelStatus | undefined;
-    if (number && !sub.smsStopped && !optedOut?.has(number)) {
-      sms = await sendSms(number, u.sms).then((r) => (r.dryRun ? "dry-run" : "sent") as ChannelStatus, (e) => {
+    if (number && !smsBlocked(sub) && !optedOut?.has(number)) {
+      sms = await textPerson(sub, number, plainLetters(u.sms)).then((r) => (r.stopped ? "stopped" : r.dryRun ? "dry-run" : "sent") as ChannelStatus, (e) => {
         log.error("alert_failed", { kind: "notice", ch: "sms", who: who(sub.phone), date: today, err: reason(e) });
         return "failed" as ChannelStatus;
       });
@@ -333,8 +334,8 @@ async function sendEndingNotice(sub: Subscriber, endDate: string, today: string,
     log.error("alert_failed", { kind: "ending", ch, who: who(sub.phone), date: today, err: reason(e) });
     return "failed" as ChannelStatus;
   };
-  if (number && !sub.smsStopped && !optedOut?.has(number)) {
-    sms = await sendSms(number, text).then((r) => (r.dryRun ? "dry-run" : "sent") as ChannelStatus, failed("sms"));
+  if (number && !smsBlocked(sub) && !optedOut?.has(number)) {
+    sms = await textPerson(sub, number, plainLetters(text)).then((r) => (r.stopped ? "stopped" : r.dryRun ? "dry-run" : "sent") as ChannelStatus, failed("sms"));
   }
   if (address) {
     const unsub = unsubscribeUrl(sub.phone);
@@ -464,14 +465,8 @@ async function run(opts: { force?: boolean }, deadline: number): Promise<NotifyR
       await sendEndingNotice(sub, endDate, today, optedOut).catch((e) => log.error("alert_failed", { kind: "ending", who: who(sub.phone), date: today, err: reason(e) }));
     }
     const number = smsOf(sub);
-    if (optedOut && number) {
-      const off = optedOut.has(number);
-      if (off !== !!sub.smsStopped) {
-        await setSmsStopped(sub.phone, off);
-        sub.smsStopped = off ? nowIso() : undefined;
-      }
-    }
-    const smsOff = !!sub.smsStopped;
+    if (optedOut && number) await syncAwsStop(sub, optedOut.has(number));
+    let smsOff = smsBlocked(sub);
     const address = sub.emailStopped ? undefined : emailOf(sub);
     const prefs = sub.prefs ?? DEFAULT_PREFS;
     const matched = matchedColors(sub.colors, todayKeys);
@@ -515,7 +510,9 @@ async function run(opts: { force?: boolean }, deadline: number): Promise<NotifyR
       const why: string[] = []; // what went wrong on each channel, kept with the alert record
       if (number && !smsOff) {
         try {
-          r = await sendSms(number, message);
+          const sent = await textPerson(sub, number, message);
+          if (sent.stopped) smsOff = true; // refused because they replied STOP: recorded, and not a failure
+          else r = sent;
         } catch (e) {
           smsError = e instanceof Error ? e.message : String(e);
           why.push(`sms: ${reason(e)}`);

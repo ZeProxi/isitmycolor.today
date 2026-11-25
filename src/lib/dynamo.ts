@@ -100,6 +100,8 @@ export type Subscriber = {
   testSends?: number[];
   /** ISO time we noticed this number replied STOP to the carrier; texts are skipped until it replies START. */
   smsStopped?: string;
+  /** Which texting company the STOP was sent to ("aws" or "twilio"). Each keeps its own list, so a stop made at one is never lifted by the other. */
+  smsStoppedVia?: string;
   /** Why the email was removed automatically (hard bounce, spam complaint, or the link in an email). */
   emailStopped?: { at: string; reason: "bounce" | "complaint" | "unsubscribe"; email: string };
   /** web push subscriptions (devices that allowed notifications) */
@@ -217,7 +219,7 @@ export async function setContact(id: string, c: Contact, smsConsentAt?: string) 
       Key: { phone: id },
       UpdateExpression:
         c.kind === "sms"
-          ? `SET sms = :v, updatedAt = :u${consent ? ", smsConsent = :c" : ""} REMOVE smsStopped`
+          ? `SET sms = :v, updatedAt = :u${consent ? ", smsConsent = :c" : ""} REMOVE smsStopped, smsStoppedVia`
           : "SET email = :v, emailVerified = :t, updatedAt = :u REMOVE emailStopped",
       ExpressionAttributeValues:
         c.kind === "sms" ? { ":v": c.value, ":u": nowIso(), ...(consent ? { ":c": consent } : {}) } : { ":v": c.value, ":t": true, ":u": nowIso() },
@@ -233,7 +235,7 @@ export async function removeContact(id: string, kind: ContactKind) {
       TableName: env.subscribersTable,
       Key: { phone: id },
       // sms is set to "" rather than removed, so an id that is itself a number stops counting as one
-      UpdateExpression: kind === "sms" ? "SET sms = :e, updatedAt = :u REMOVE smsStopped, smsConsent" : "SET updatedAt = :u REMOVE email, emailVerified, emailStopped",
+      UpdateExpression: kind === "sms" ? "SET sms = :e, updatedAt = :u REMOVE smsStopped, smsStoppedVia, smsConsent" : "SET updatedAt = :u REMOVE email, emailVerified, emailStopped",
       ExpressionAttributeValues: kind === "sms" ? { ":e": "", ":u": nowIso() } : { ":u": nowIso() },
       ConditionExpression: "attribute_exists(phone)",
     }),
@@ -258,7 +260,13 @@ export function mergedAccount(into: Subscriber, from: Subscriber, now: string): 
   const colors = Array.from(new Set([...into.colors, ...from.colors])).slice(0, 10);
   const push = [...(into.push ?? []), ...(from.push ?? []).filter((p) => !(into.push ?? []).some((q) => q.endpoint === p.endpoint))].slice(-5);
   const merged: Subscriber = { ...into, colors, colorLog: colorLogAfter(into, colors, now), push: push.length ? push : undefined, updatedAt: now };
-  if (!smsOf(into) && smsOf(from)) merged.sms = smsOf(from);
+  if (!smsOf(into) && smsOf(from)) {
+    merged.sms = smsOf(from);
+    // What is known about that number comes with it: when it agreed to texts, and whether it replied STOP (and to whom).
+    merged.smsConsent = from.smsConsent;
+    merged.smsStopped = from.smsStopped;
+    merged.smsStoppedVia = from.smsStoppedVia;
+  }
   if (!emailOf(into) && emailOf(from)) {
     merged.email = emailOf(from);
     merged.emailVerified = true;
@@ -528,13 +536,13 @@ export async function findSubscribersByEmail(email: string): Promise<Subscriber[
 }
 
 /** Record (or clear) that the carrier has this number opted out of texts. */
-export async function setSmsStopped(phone: string, stopped: boolean) {
+export async function setSmsStopped(phone: string, stopped: boolean, via?: "aws" | "twilio") {
   await (await client()).send(
     new UpdateCommand({
       TableName: env.subscribersTable,
       Key: { phone },
-      UpdateExpression: stopped ? "SET smsStopped = :t, updatedAt = :u" : "REMOVE smsStopped SET updatedAt = :u",
-      ExpressionAttributeValues: stopped ? { ":t": nowIso(), ":u": nowIso() } : { ":u": nowIso() },
+      UpdateExpression: stopped ? "SET smsStopped = :t, smsStoppedVia = :v, updatedAt = :u" : "REMOVE smsStopped, smsStoppedVia SET updatedAt = :u",
+      ExpressionAttributeValues: stopped ? { ":t": nowIso(), ":v": via ?? "aws", ":u": nowIso() } : { ":u": nowIso() },
     }),
   );
 }

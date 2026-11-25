@@ -2,8 +2,8 @@ import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { env } from "./env";
-import { getOtp, putOtp, deleteOtp } from "./dynamo";
-import { sendSms, isOptedOut } from "./sms";
+import { getOtp, putOtp, deleteOtp, findAccountByContact } from "./dynamo";
+import { sendSms, isOptedOut, SmsStopped } from "./sms";
 import { sendEmail, EmailQuotaError } from "./email";
 import { alertOwner } from "./health";
 import { codeEmail } from "./email-layout";
@@ -51,6 +51,8 @@ export async function sendCode(c: Contact, lang: "en" | "es" = "en", consentAt?:
   // one can't be raced. Keyed by a tag of the contact, never the contact itself.
   if (!(await allow(`codes:to:${who(c.value)}`, MAX_SENDS_PER_WINDOW, SEND_WINDOW_MS / 1000))) return { ok: false, error: "rate_limited" };
   if (c.kind === "sms" && (await isOptedOut(c.value))) return { ok: false, error: "opted_out" }; // the carrier would drop it anyway
+  // Twilio has no list to ask, so the site's own record of a STOP is what says the code would never arrive.
+  if (c.kind === "sms" && env.smsProvider === "twilio" && (await findAccountByContact(c))?.smsStopped) return { ok: false, error: "opted_out" };
 
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   await putOtp({
@@ -80,6 +82,7 @@ export async function sendCode(c: Contact, lang: "en" | "es" = "en", consentAt?:
       }
     }
   } catch (e) {
+    if (e instanceof SmsStopped) return { ok: false, error: "opted_out" }; // refused because the number replied STOP
     log.error("code_send_failed", { ch: c.kind, who: who(c.value), err: reason(e) });
     if (e instanceof EmailQuotaError) {
       await alertOwner("email_quota", e.message).catch(() => {});

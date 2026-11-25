@@ -1,8 +1,8 @@
 import { currentAccount } from "@/lib/auth";
-import { emailOf, getSubscriber, recordTestSend, setSmsStopped, smsOf } from "@/lib/dynamo";
+import { emailOf, getSubscriber, recordTestSend, smsOf } from "@/lib/dynamo";
 import { fetchColors } from "@/lib/scrape";
 import { buildMessage, buildEmailHtml, buildPushNote, forEmail } from "@/lib/notify";
-import { sendSms, isOptedOut } from "@/lib/sms";
+import { isOptedOut, smsBlocked, syncAwsStop, textPerson } from "@/lib/sms";
 import { sendEmail } from "@/lib/email";
 import { sendPush } from "@/lib/push";
 import { logAlert } from "@/lib/alertlog";
@@ -49,14 +49,13 @@ export async function POST() {
   let smsError: string | undefined;
   const number = smsOf(sub);
   if (number) {
-    const stopped = await isOptedOut(number); // replied STOP to the carrier
-    if (stopped !== !!sub.smsStopped) await setSmsStopped(phone, stopped);
-    if (stopped) {
+    await syncAwsStop(sub, await isOptedOut(number)); // replied STOP to the carrier
+    if (smsBlocked(sub)) {
       sms = "stopped";
     } else {
       try {
-        const r = await sendSms(number, message);
-        sms = r.dryRun ? "dry-run" : "sent";
+        const r = await textPerson(sub, number, message);
+        sms = r.stopped ? "stopped" : r.dryRun ? "dry-run" : "sent";
       } catch (e) {
         sms = "failed";
         smsError = e instanceof Error ? e.message : String(e);

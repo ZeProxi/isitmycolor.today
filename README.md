@@ -111,8 +111,13 @@ npx tsx scripts/sns-sandbox.ts verify +18015551234 123456
    runs capture the new day for the calendar. Each person picks their earliest text hour (1 am to 12 pm,
    default 6 am); the global window `NOTIFY_START_HOUR`..`NOTIFY_END_HOUR` (default 1 am to 9 pm) is a
    floor on top of that.
-5. SMS: texts are sent with AWS End User Messaging, not SNS (SNS accepts a text for a registered
-   toll-free number and then fails to deliver it). The account starts in the sandbox (texts only reach
+5. SMS: two texting companies are supported and `SMS_PROVIDER` picks one: `aws` (the default, AWS End
+   User Messaging from a registered toll-free number) or `twilio` (set `TWILIO_ACCOUNT_SID`,
+   `TWILIO_API_KEY_SID`, `TWILIO_API_KEY_SECRET`, `TWILIO_MESSAGING_SERVICE_SID` and `TWILIO_NUMBER`; use a
+   restricted API key that can only create and read messages). Changing the setting moves every text
+   across. Nothing falls back by itself, because each company keeps its own STOP list. On AWS, texts
+   are sent with End User Messaging, not SNS (SNS accepts a text for a registered toll-free number and
+   then fails to deliver it). The account starts in the sandbox (texts only reach
    verified numbers). Request production access in the End User Messaging SMS console. US carriers may also require a
    registered origination number or toll-free number for reliable delivery.
 6. Email (optional), through Amazon SES: verify a sender identity, set `EMAIL_FROM`, and request SES
@@ -179,7 +184,7 @@ address again. Setup: `scripts/setup-ses-events.sh`.
 
 ## STOP and START
 
-Carrier opt-outs are enforced by AWS End User Messaging. The site reads its opted-out list on every notify run
+Carrier opt-outs are enforced by the texting company. Twilio reports each STOP and START to `/api/twilio/inbound` (set as the messaging service's incoming-message webhook, with `TWILIO_WEBHOOK_SECRET` as its password), and the site records it; a stop made at one company is never lifted by the other. With AWS End User Messaging, the site reads its opted-out list on every notify run
 and before any sign-in code or test text, marks those subscribers `smsStopped`, skips their text channel
 (email and push continue), shows "stopped" in their alert history, and tells them to text START to the
 toll-free number to get texts back. The compute role needs `sns:ListPhoneNumbersOptedOut` and
